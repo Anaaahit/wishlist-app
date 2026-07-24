@@ -1,0 +1,82 @@
+import { Platform } from 'react-native';
+
+const tintColorLight = '#6C5CE7';
+const tintColorDark = '#A29BFE';
+
+export const Colors = {
+  light: {
+    text: '#1A1A2E',
+    textSecondary: '#6C6C80',
+    textDimmed: '#A0A0B0',
+    background: '#F8F9FE',
+    surface: '#FFFFFF',
+    surfaceElevated: '#FFFFFF',
+    tint: tintColorLight,
+    icon: '#6C6C80',
+    tabIconDefault: '#A0A0B0',
+    tabIconSelected: tintColorLight,
+    border: '#E8E8F0',
+    borderLight: '#F0F0F8',
+    accent: '#6C5CE7',
+    success: '#00B894',
+    warning: '#FDCB6E',
+    danger: '#E17055',
+    confetti1: '#6C5CE7',
+    confetti2: '#00B894',
+    confetti3: '#FDCB6E',
+    confetti4: '#E17055',
+    confetti5: '#74B9FF',
+    overlay: 'rgba(0,0,0,0.4)',
+    cardShadow: 'rgba(108,92,231,0.08)',
+    progressTrack: '#F0F0F8',
+    priceTag: '#6C5CE7',
+  },
+  dark: {
+    text: '#E8E8F0',
+    textSecondary: '#8888A0',
+    textDimmed: '#555570',
+    background: '#0D0D1A',
+    surface: '#1A1A2E',
+    surfaceElevated: '#222240',
+    tint: tintColorDark,
+    icon: '#8888A0',
+    tabIconDefault: '#555570',
+    tabIconSelected: tintColorDark,
+    border: '#2A2A44',
+    borderLight: '#1E1E36',
+    accent: '#A29BFE',
+    success: '#55EFC4',
+    warning: '#FFEAA7',
+    danger: '#FF7675',
+    confetti1: '#A29BFE',
+    confetti2: '#55EFC4',
+    confetti3: '#FFEAA7',
+    confetti4: '#FF7675',
+    confetti5: '#74B9FF',
+    overlay: 'rgba(0,0,0,0.6)',
+    cardShadow: 'rgba(0,0,0,0.3)',
+    progressTrack: '#2A2A44',
+    priceTag: '#A29BFE',
+  },
+};
+
+export const Fonts = Platform.select({
+  ios: {
+    sans: 'system-ui',
+    serif: 'ui-serif',
+    rounded: 'ui-rounded',
+    mono: 'ui-monospace',
+  },
+  default: {
+    sans: 'normal',
+    serif: 'serif',
+    rounded: 'normal',
+    mono: 'monospace',
+  },
+  web: {
+    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    serif: "Georgia, 'Times New Roman', serif",
+    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
+    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+  },
+});
