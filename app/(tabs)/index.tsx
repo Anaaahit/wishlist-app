@@ -15,14 +15,15 @@ import { WishlistCard } from '@/components/WishlistCard';
 import { ItemFormModal } from '@/components/ItemFormModal';
 import { FAB } from '@/components/FAB';
 import { SortSelector } from '@/components/SortSelector';
-import { SavingsGoalBar } from '@/components/SavingsGoalBar';
 import { Confetti } from '@/components/Confetti';
-import { WishlistItem, CURRENCIES } from '@/types/wishlist';
+import { useSettings } from '@/context/SettingsContext';
+import { WishlistItem } from '@/types/wishlist';
 
 export default function WishlistScreen() {
   const insets = useSafeAreaInsets();
   const {
     activeItems,
+    items,
     totalActiveValue,
     sortBy,
     setSortBy,
@@ -35,6 +36,7 @@ export default function WishlistScreen() {
   const [formVisible, setFormVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const { settings } = useSettings();
 
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
@@ -69,15 +71,12 @@ export default function WishlistScreen() {
     }
   };
 
-  const highTicketItems = activeItems.filter(
-    (item) => item.price != null && item.price >= 100
-  );
-
   const renderItem = ({ item }: { item: WishlistItem }) => (
     <WishlistCard
       item={item}
       onToggleComplete={() => handleToggleComplete(item)}
       onPress={() => handleCardPress(item)}
+      onAddToSavings={(amount) => updateItem(item.id, { savedAmount: item.savedAmount + amount })}
     />
   );
 
@@ -90,7 +89,7 @@ export default function WishlistScreen() {
           <View>
             <Text style={[styles.greeting, { color: textSecondary }]}>My Wishlist</Text>
             <Text style={[styles.totalValue, { color: accent }]}>
-              {CURRENCIES[0]}{totalActiveValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {settings.defaultCurrency}{totalActiveValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
           </View>
           <View style={[styles.countBadge, { backgroundColor: accent + '15' }]}>
@@ -100,20 +99,6 @@ export default function WishlistScreen() {
         </View>
         <SortSelector value={sortBy} onChange={setSortBy} />
       </View>
-
-      {highTicketItems.length > 0 && (
-        <View style={styles.savingsSection}>
-          <Text style={[styles.savingsTitle, { color: text }]}>Savings Goals</Text>
-          {highTicketItems.slice(0, 3).map((item) => (
-            <SavingsGoalBar
-              key={item.id}
-              price={item.price!}
-              targetPrice={item.price!}
-              currency={item.currency}
-            />
-          ))}
-        </View>
-      )}
 
       <FlatList
         data={activeItems}
@@ -137,6 +122,7 @@ export default function WishlistScreen() {
       <ItemFormModal
         visible={formVisible}
         item={editingItem}
+        items={items}
         onClose={() => { setFormVisible(false); setEditingItem(null); }}
         onSave={handleSave}
         onDelete={editingItem ? handleDelete : undefined}
@@ -180,19 +166,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  savingsSection: {
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  savingsTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
   list: {
     paddingTop: 4,
+    paddingBottom: 120,
   },
   empty: {
     alignItems: 'center',

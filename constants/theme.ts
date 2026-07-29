@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
-const tintColorLight = '#6C5CE7';
-const tintColorDark = '#A29BFE';
+const tintColorLight = '#2A9D8F';
+const tintColorDark = '#4ECDC4';
 
 export const Colors = {
   light: {
@@ -17,19 +17,19 @@ export const Colors = {
     tabIconSelected: tintColorLight,
     border: '#E8E8F0',
     borderLight: '#F0F0F8',
-    accent: '#6C5CE7',
+    accent: '#2A9D8F',
     success: '#00B894',
     warning: '#FDCB6E',
     danger: '#E17055',
-    confetti1: '#6C5CE7',
+    confetti1: '#2A9D8F',
     confetti2: '#00B894',
     confetti3: '#FDCB6E',
     confetti4: '#E17055',
     confetti5: '#74B9FF',
     overlay: 'rgba(0,0,0,0.4)',
-    cardShadow: 'rgba(108,92,231,0.08)',
+    cardShadow: 'rgba(42,157,143,0.08)',
     progressTrack: '#F0F0F8',
-    priceTag: '#6C5CE7',
+    priceTag: '#2A9D8F',
   },
   dark: {
     text: '#E8E8F0',
@@ -44,11 +44,11 @@ export const Colors = {
     tabIconSelected: tintColorDark,
     border: '#2A2A44',
     borderLight: '#1E1E36',
-    accent: '#A29BFE',
+    accent: '#4ECDC4',
     success: '#55EFC4',
     warning: '#FFEAA7',
     danger: '#FF7675',
-    confetti1: '#A29BFE',
+    confetti1: '#4ECDC4',
     confetti2: '#55EFC4',
     confetti3: '#FFEAA7',
     confetti4: '#FF7675',
@@ -56,7 +56,7 @@ export const Colors = {
     overlay: 'rgba(0,0,0,0.6)',
     cardShadow: 'rgba(0,0,0,0.3)',
     progressTrack: '#2A2A44',
-    priceTag: '#A29BFE',
+    priceTag: '#4ECDC4',
   },
 };
 

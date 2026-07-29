@@ -3,17 +3,20 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
 interface SavingsGoalBarProps {
-  price: number;
+  savedAmount: number;
   targetPrice: number;
   currency: string;
 }
 
-export function SavingsGoalBar({ price, targetPrice, currency }: SavingsGoalBarProps) {
+export function SavingsGoalBar({ savedAmount, targetPrice, currency }: SavingsGoalBarProps) {
   const trackColor = useThemeColor({}, 'progressTrack');
   const accent = useThemeColor({}, 'accent');
   const textSecondary = useThemeColor({}, 'textSecondary');
+  const success = useThemeColor({}, 'success');
 
-  const progress = Math.min(price / targetPrice, 1);
+  const progress = Math.min(savedAmount / targetPrice, 1);
+  const remaining = Math.max(targetPrice - savedAmount, 0);
+  const isComplete = savedAmount >= targetPrice;
 
   return (
     <View style={styles.container}>
@@ -22,15 +25,22 @@ export function SavingsGoalBar({ price, targetPrice, currency }: SavingsGoalBarP
           style={[
             styles.fill,
             {
-              backgroundColor: accent,
+              backgroundColor: isComplete ? success : accent,
               width: `${progress * 100}%`,
             },
           ]}
         />
       </View>
-      <Text style={[styles.label, { color: textSecondary }]}>
-        {currency}{price.toLocaleString()} / {currency}{targetPrice.toLocaleString()}
-      </Text>
+      <View style={styles.labelRow}>
+        <Text style={[styles.label, { color: textSecondary }]}>
+          Saved {currency}{savedAmount.toLocaleString()} of {currency}{targetPrice.toLocaleString()}
+        </Text>
+        {!isComplete && (
+          <Text style={[styles.remaining, { color: textSecondary }]}>
+            {currency}{remaining.toLocaleString()} left
+          </Text>
+        )}
+      </View>
     </View>
   );
 }
@@ -40,16 +50,24 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   track: {
-    height: 4,
-    borderRadius: 2,
+    height: 6,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   fill: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 3,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 3,
   },
   label: {
     fontSize: 11,
-    marginTop: 2,
+  },
+  remaining: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

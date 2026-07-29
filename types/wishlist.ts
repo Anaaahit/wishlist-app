@@ -10,6 +10,7 @@ export interface WishlistItem {
   notes: string;
   priority: Priority;
   categories: string[];
+  savedAmount: number;
   completed: boolean;
   createdAt: number;
   completedAt: number | null;
@@ -36,4 +37,4 @@ export const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; i
   high: { label: 'High', color: '#FF3B30', icon: '●' },
 };
 
-export const CURRENCIES = ['$', '€', '£', '¥', '₹', 'A$'] as const;
+export const CURRENCIES = ['$', '€', '£', '¥', '₹', 'A$', '֏'] as const;

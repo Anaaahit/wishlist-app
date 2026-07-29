@@ -1,24 +1,37 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image as RNImage, Platform } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Image as RNImage,
+  Platform,
+} from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { WishlistItem, PRIORITY_CONFIG } from '@/types/wishlist';
 import { DefaultImage } from '@/components/DefaultImage';
+import { SavingsGoalBar } from '@/components/SavingsGoalBar';
 
 interface WishlistCardProps {
   item: WishlistItem;
   onToggleComplete: () => void;
   onPress: () => void;
+  onAddToSavings?: (amount: number) => void;
 }
 
-export function WishlistCard({ item, onToggleComplete, onPress }: WishlistCardProps) {
+export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings }: WishlistCardProps) {
   const surface = useThemeColor({}, 'surface');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
   const border = useThemeColor({}, 'border');
   const accent = useThemeColor({}, 'accent');
   const priceTag = useThemeColor({}, 'priceTag');
+
+  const [showAddSavings, setShowAddSavings] = useState(false);
+  const [addAmount, setAddAmount] = useState('');
 
   const priorityConfig = PRIORITY_CONFIG[item.priority];
 
@@ -27,6 +40,15 @@ export function WishlistCard({ item, onToggleComplete, onPress }: WishlistCardPr
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     onToggleComplete();
+  };
+
+  const handleAddSavings = () => {
+    const amount = parseFloat(addAmount);
+    if (!isNaN(amount) && amount > 0 && onAddToSavings) {
+      onAddToSavings(amount);
+    }
+    setShowAddSavings(false);
+    setAddAmount('');
   };
 
   return (
@@ -71,6 +93,48 @@ export function WishlistCard({ item, onToggleComplete, onPress }: WishlistCardPr
                 <Text style={[styles.miniTagText, { color: accent }]}>{cat}</Text>
               </View>
             ))}
+          </View>
+        )}
+
+        {item.price != null && (
+          <View style={styles.savingsSection}>
+            <SavingsGoalBar
+              savedAmount={item.savedAmount}
+              targetPrice={item.price}
+              currency={item.currency}
+            />
+            <View style={styles.savingsActions}>
+              {item.savedAmount < item.price && (
+                showAddSavings ? (
+                  <View style={[styles.addInputRow, { backgroundColor: surface, borderColor: border }]}>
+                    <TextInput
+                      style={[styles.addInput, { color: text }]}
+                      value={addAmount}
+                      onChangeText={setAddAmount}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      placeholderTextColor={textSecondary}
+                      autoFocus
+                    />
+                    <TouchableOpacity onPress={handleAddSavings} activeOpacity={0.7}>
+                      <Ionicons name="checkmark-circle" size={24} color={accent} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => { setShowAddSavings(false); setAddAmount(''); }} activeOpacity={0.7}>
+                      <Ionicons name="close-circle" size={24} color={textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.addBtn, { backgroundColor: accent + '12' }]}
+                    onPress={() => setShowAddSavings(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="add-circle" size={14} color={accent} />
+                    <Text style={[styles.addBtnText, { color: accent }]}>Add Saved</Text>
+                  </TouchableOpacity>
+                )
+              )}
+            </View>
           </View>
         )}
       </View>
@@ -150,6 +214,40 @@ const styles = StyleSheet.create({
   miniTagText: {
     fontSize: 10,
     fontWeight: '600',
+  },
+  savingsSection: {
+    marginTop: 4,
+  },
+  savingsActions: {
+    flexDirection: 'row',
+    marginTop: 4,
+  },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 3,
+  },
+  addBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  addInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 6,
+  },
+  addInput: {
+    fontSize: 13,
+    fontWeight: '600',
+    minWidth: 50,
+    paddingVertical: 0,
   },
   priceBadge: {
     paddingHorizontal: 10,

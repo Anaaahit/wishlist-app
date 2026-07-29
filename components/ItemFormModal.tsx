@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
   Image as RNImage,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { WishlistItem, Priority, CURRENCIES } from '@/types/wishlist';
+import { fetchUrlMetadata } from '@/services/fetchUrlMetadata';
+import { useSettings } from '@/context/SettingsContext';
 import { PrioritySelector } from '@/components/PrioritySelector';
 import { CategoryTags } from '@/components/CategoryTags';
 import { DefaultImage } from '@/components/DefaultImage';
@@ -26,9 +29,33 @@ interface ItemFormModalProps {
   onClose: () => void;
   onSave: (data: any) => void;
   onDelete?: () => void;
+  items: WishlistItem[];
 }
 
-export function ItemFormModal({ visible, item, onClose, onSave, onDelete }: ItemFormModalProps) {
+function normalizeUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    return `${u.host.replace(/^www\./, '')}${u.pathname.replace(/\/+$/, '')}${u.search}`
+      .toLowerCase();
+  } catch {
+    return raw.toLowerCase().trim();
+  }
+}
+
+function isTitleSimilar(a: string, b: string): boolean {
+  const norm = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ');
+  const aNorm = norm(a);
+  const bNorm = norm(b);
+  if (!aNorm || !bNorm) return false;
+  if (aNorm === bNorm) return true;
+  if (aNorm.includes(bNorm) || bNorm.includes(aNorm)) return true;
+  const aWords = aNorm.split(' ');
+  const bWords = bNorm.split(' ');
+  const overlap = aWords.filter((w) => bWords.includes(w)).length;
+  return overlap / Math.max(aWords.length, bWords.length) >= 0.6;
+}
+
+export function ItemFormModal({ visible, item, onClose, onSave, onDelete, items }: ItemFormModalProps) {
   const [title, setTitle] = useState('');
   const [price, setPrice] = useState('');
   const [currency, setCurrency] = useState('$');
@@ -37,6 +64,11 @@ export function ItemFormModal({ visible, item, onClose, onSave, onDelete }: Item
   const [notes, setNotes] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
   const [categories, setCategories] = useState<string[]>([]);
+  const [savedAmount, setSavedAmount] = useState('');
+  const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
+  const [dupLinkWarning, setDupLinkWarning] = useState<string | null>(null);
+  const [dupTitleWarning, setDupTitleWarning] = useState<string | null>(null);
+  const suppressFetch = useRef(true);
 
   const surface = useThemeColor({}, 'surface');
   const surfaceElevated = useThemeColor({}, 'surfaceElevated');
@@ -46,10 +78,13 @@ export function ItemFormModal({ visible, item, onClose, onSave, onDelete }: Item
   const accent = useThemeColor({}, 'accent');
   const overlay = useThemeColor({}, 'overlay');
   const danger = useThemeColor({}, 'danger');
+  const warning = useThemeColor({}, 'warning');
 
   const isEditing = !!item;
+  const { settings } = useSettings();
 
   useEffect(() => {
+    suppressFetch.current = true;
     if (item) {
       setTitle(item.title);
       setPrice(item.price != null ? item.price.toString() : '');
@@ -59,20 +94,85 @@ export function ItemFormModal({ visible, item, onClose, onSave, onDelete }: Item
       setNotes(item.notes);
       setPriority(item.priority);
       setCategories(item.categories);
+      setSavedAmount(item.savedAmount > 0 ? item.savedAmount.toString() : '');
     } else {
       resetForm();
     }
+    const timer = setTimeout(() => { suppressFetch.current = false; }, 600);
+    return () => clearTimeout(timer);
   }, [item, visible]);
+
+  useEffect(() => {
+    if (suppressFetch.current) return;
+
+    const trimmed = link.trim();
+    if (!trimmed) {
+      setDupLinkWarning(null);
+      return;
+    }
+
+    try {
+      new URL(trimmed);
+    } catch {
+      setDupLinkWarning(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      const trimmedUrl = normalizeUrl(trimmed);
+      const matched = items.find(
+        (i) => i.id !== item?.id && normalizeUrl(i.link) === trimmedUrl
+      );
+      setDupLinkWarning(matched ? matched.title : null);
+
+      setIsFetchingMetadata(true);
+      const metadata = await fetchUrlMetadata(trimmed);
+      if (metadata) {
+        if (metadata.title) setTitle(metadata.title);
+        if (metadata.image) setImageUri(metadata.image);
+        if (metadata.price) {
+          const cleaned = metadata.price.replace(/[^0-9.,]/g, '');
+          if (cleaned) {
+            setPrice(cleaned.includes(',') && !cleaned.includes('.')
+              ? cleaned.replace(',', '.')
+              : cleaned);
+          }
+        }
+        if (metadata.currency && CURRENCIES.includes(metadata.currency as any)) {
+          setCurrency(metadata.currency);
+        }
+      }
+      setIsFetchingMetadata(false);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [link, items, item?.id]);
+
+  useEffect(() => {
+    const trimmedTitle = title.trim();
+    if (suppressFetch.current || !trimmedTitle) {
+      setDupTitleWarning(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      const matched = items.find(
+        (i) => i.id !== item?.id && isTitleSimilar(i.title, trimmedTitle)
+      );
+      setDupTitleWarning(matched ? matched.title : null);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [title, items, item?.id]);
 
   const resetForm = () => {
     setTitle('');
     setPrice('');
-    setCurrency('$');
+    setCurrency(settings.defaultCurrency);
     setImageUri(null);
     setLink('');
     setNotes('');
     setPriority('medium');
     setCategories([]);
+    setSavedAmount('');
   };
 
   const handlePickImage = async () => {
@@ -103,6 +203,7 @@ export function ItemFormModal({ visible, item, onClose, onSave, onDelete }: Item
       notes: notes.trim(),
       priority,
       categories,
+      savedAmount: savedAmount ? parseFloat(savedAmount) : 0,
     });
     onClose();
   };
@@ -162,6 +263,14 @@ export function ItemFormModal({ visible, item, onClose, onSave, onDelete }: Item
                   placeholder="What do you wish for?"
                   placeholderTextColor={textSecondary}
                 />
+                {dupTitleWarning && (
+                  <View style={[styles.dupWarning, { backgroundColor: warning + '20' }]}>
+                    <Ionicons name="alert-circle" size={14} color={warning} />
+                    <Text style={[styles.dupWarningText, { color: warning }]} numberOfLines={1}>
+                      Similar: {dupTitleWarning}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.field}>
@@ -188,17 +297,48 @@ export function ItemFormModal({ visible, item, onClose, onSave, onDelete }: Item
                 </View>
               </View>
 
+              {price && (
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: text }]}>Already Saved</Text>
+                  <View style={styles.priceRow}>
+                    <TextInput
+                      style={[styles.input, styles.priceInput, { backgroundColor: surfaceElevated, borderColor: border, color: text }]}
+                      value={savedAmount}
+                      onChangeText={setSavedAmount}
+                      placeholder="0.00"
+                      placeholderTextColor={textSecondary}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                </View>
+              )}
+
               <View style={styles.field}>
                 <Text style={[styles.label, { color: text }]}>Link</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: surfaceElevated, borderColor: border, color: text }]}
-                  value={link}
-                  onChangeText={setLink}
-                  placeholder="https://..."
-                  placeholderTextColor={textSecondary}
-                  keyboardType="url"
-                  autoCapitalize="none"
-                />
+                <View>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: surfaceElevated, borderColor: border, color: text }]}
+                    value={link}
+                    onChangeText={setLink}
+                    placeholder="https://..."
+                    placeholderTextColor={textSecondary}
+                    keyboardType="url"
+                    autoCapitalize="none"
+                  />
+                  {isFetchingMetadata && (
+                    <View style={styles.fetchingOverlay}>
+                      <ActivityIndicator size="small" color={accent} />
+                    </View>
+                  )}
+                </View>
+                {dupLinkWarning && (
+                  <View style={[styles.dupWarning, { backgroundColor: warning + '20' }]}>
+                    <Ionicons name="alert-circle" size={14} color={warning} />
+                    <Text style={[styles.dupWarningText, { color: warning }]} numberOfLines={1}>
+                      Already in wishlist: {dupLinkWarning}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.field}>
@@ -350,6 +490,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   priceInput: {
+    flex: 1,
+  },
+  fetchingOverlay: {
+    position: 'absolute',
+    right: 12,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  dupWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  dupWarningText: {
+    fontSize: 12,
+    fontWeight: '500',
     flex: 1,
   },
   notesInput: {

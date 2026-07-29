@@ -60,6 +60,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     (item: Omit<WishlistItem, 'id' | 'createdAt' | 'completed' | 'completedAt'>) => {
       const newItem: WishlistItem = {
         ...item,
+        savedAmount: item.savedAmount ?? 0,
         id: generateId(),
         createdAt: Date.now(),
         completed: false,
