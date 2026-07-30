@@ -37,4 +37,4 @@ export const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; i
   high: { label: 'High', color: '#FF3B30', icon: '●' },
 };
 
-export const CURRENCIES = ['$', '€', '£', '¥', '₹', 'A$', '֏'] as const;
+export const CURRENCIES = ['$', '€', '£', '¥', '₹', 'MX$', '֏'] as const;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,13 +12,28 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { CompletedCard } from '@/components/CompletedCard';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { WishlistItem } from '@/types/wishlist';
+import { fetchRates, convertAmount } from '@/services/currencyRates';
+import { useSettings } from '@/context/SettingsContext';
 
 export default function CompletedScreen() {
   const insets = useSafeAreaInsets();
   const { completedItems, restoreItem, deleteItem } = useWishlist();
+  const { settings } = useSettings();
   const [selectedItem, setSelectedItem] = useState<WishlistItem | null>(null);
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [rates, setRates] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    fetchRates().then(setRates);
+  }, []);
+
+  const convert = useCallback(
+    (amount: number, fromCurrency: string) => {
+      return convertAmount(amount, fromCurrency, settings.defaultCurrency, rates);
+    },
+    [settings.defaultCurrency, rates]
+  );
 
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
@@ -46,9 +61,17 @@ export default function CompletedScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: WishlistItem }) => (
-    <CompletedCard item={item} onPress={() => handleCardPress(item)} />
-  );
+  const renderItem = ({ item }: { item: WishlistItem }) => {
+    const displayPrice = item.price != null ? convert(item.price, item.currency) : null;
+    return (
+      <CompletedCard
+        item={item}
+        displayPrice={displayPrice}
+        displayCurrency={settings.defaultCurrency}
+        onPress={() => handleCardPress(item)}
+      />
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: useThemeColor({}, 'background') }]}>

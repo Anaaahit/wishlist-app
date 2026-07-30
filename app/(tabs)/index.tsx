@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,13 +18,13 @@ import { SortSelector } from '@/components/SortSelector';
 import { Confetti } from '@/components/Confetti';
 import { useSettings } from '@/context/SettingsContext';
 import { WishlistItem } from '@/types/wishlist';
+import { fetchRates, convertAmount } from '@/services/currencyRates';
 
 export default function WishlistScreen() {
   const insets = useSafeAreaInsets();
   const {
     activeItems,
     items,
-    totalActiveValue,
     sortBy,
     setSortBy,
     addItem,
@@ -37,6 +37,24 @@ export default function WishlistScreen() {
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const { settings } = useSettings();
+
+  const [rates, setRates] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    fetchRates().then(setRates);
+  }, []);
+
+  const convert = useCallback(
+    (amount: number, fromCurrency: string) => {
+      return convertAmount(amount, fromCurrency, settings.defaultCurrency, rates);
+    },
+    [settings.defaultCurrency, rates]
+  );
+
+  const convertedTotal = activeItems.reduce((sum, item) => {
+    if (item.price == null) return sum;
+    return sum + convert(item.price, item.currency);
+  }, 0);
 
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
@@ -71,14 +89,19 @@ export default function WishlistScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: WishlistItem }) => (
-    <WishlistCard
-      item={item}
-      onToggleComplete={() => handleToggleComplete(item)}
-      onPress={() => handleCardPress(item)}
-      onAddToSavings={(amount) => updateItem(item.id, { savedAmount: item.savedAmount + amount })}
-    />
-  );
+  const renderItem = ({ item }: { item: WishlistItem }) => {
+    const displayPrice = item.price != null ? convert(item.price, item.currency) : null;
+    return (
+      <WishlistCard
+        item={item}
+        displayPrice={displayPrice}
+        displayCurrency={settings.defaultCurrency}
+        onToggleComplete={() => handleToggleComplete(item)}
+        onPress={() => handleCardPress(item)}
+        onAddToSavings={(amount) => updateItem(item.id, { savedAmount: item.savedAmount + amount })}
+      />
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: useThemeColor({}, 'background') }]}>
@@ -89,7 +112,7 @@ export default function WishlistScreen() {
           <View>
             <Text style={[styles.greeting, { color: textSecondary }]}>My Wishlist</Text>
             <Text style={[styles.totalValue, { color: accent }]}>
-              {settings.defaultCurrency}{totalActiveValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {settings.defaultCurrency}{convertedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
           </View>
           <View style={[styles.countBadge, { backgroundColor: accent + '15' }]}>

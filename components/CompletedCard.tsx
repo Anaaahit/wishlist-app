@@ -8,9 +8,13 @@ import { DefaultImage } from '@/components/DefaultImage';
 interface CompletedCardProps {
   item: WishlistItem;
   onPress: () => void;
+  displayPrice?: number | null;
+  displayCurrency?: string;
 }
 
-export function CompletedCard({ item, onPress }: CompletedCardProps) {
+export function CompletedCard({ item, onPress, displayPrice, displayCurrency }: CompletedCardProps) {
+  const priceToShow = displayPrice ?? item.price;
+  const currencyToShow = displayCurrency ?? item.currency;
   const surface = useThemeColor({}, 'surface');
   const textDimmed = useThemeColor({}, 'textDimmed');
   const textSecondary = useThemeColor({}, 'textSecondary');
@@ -46,9 +50,9 @@ export function CompletedCard({ item, onPress }: CompletedCardProps) {
         )}
       </View>
 
-      {item.price != null && (
+      {priceToShow != null && (
         <Text style={[styles.price, { color: textDimmed }]}>
-          {item.currency}{item.price.toLocaleString()}
+          {currencyToShow}{priceToShow.toLocaleString()}
         </Text>
       )}
 

@@ -20,18 +20,27 @@ interface WishlistCardProps {
   onToggleComplete: () => void;
   onPress: () => void;
   onAddToSavings?: (amount: number) => void;
+  displayPrice?: number | null;
+  displayCurrency?: string;
 }
 
-export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings }: WishlistCardProps) {
+export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings, displayPrice, displayCurrency }: WishlistCardProps) {
+  const priceToShow = displayPrice ?? item.price;
+  const currencyToShow = displayCurrency ?? item.currency;
   const surface = useThemeColor({}, 'surface');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
   const border = useThemeColor({}, 'border');
   const accent = useThemeColor({}, 'accent');
   const priceTag = useThemeColor({}, 'priceTag');
+  const warning = useThemeColor({}, 'warning');
+  const danger = useThemeColor({}, 'danger');
 
   const [showAddSavings, setShowAddSavings] = useState(false);
   const [addAmount, setAddAmount] = useState('');
+
+  const inputNum = parseFloat(addAmount);
+  const exceedsPrice = item.price != null && !isNaN(inputNum) && item.savedAmount + inputNum > item.price;
 
   const priorityConfig = PRIORITY_CONFIG[item.priority];
 
@@ -106,22 +115,32 @@ export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings }
             <View style={styles.savingsActions}>
               {item.savedAmount < item.price && (
                 showAddSavings ? (
-                  <View style={[styles.addInputRow, { backgroundColor: surface, borderColor: border }]}>
-                    <TextInput
-                      style={[styles.addInput, { color: text }]}
-                      value={addAmount}
-                      onChangeText={setAddAmount}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      placeholderTextColor={textSecondary}
-                      autoFocus
-                    />
-                    <TouchableOpacity onPress={handleAddSavings} activeOpacity={0.7}>
-                      <Ionicons name="checkmark-circle" size={24} color={accent} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => { setShowAddSavings(false); setAddAmount(''); }} activeOpacity={0.7}>
-                      <Ionicons name="close-circle" size={24} color={textSecondary} />
-                    </TouchableOpacity>
+                  <View style={styles.addInputWrap}>
+                    <View style={[styles.addInputRow, { backgroundColor: surface, borderColor: exceedsPrice ? warning : border }]}>
+                      <TextInput
+                        style={[styles.addInput, { color: text }]}
+                        value={addAmount}
+                        onChangeText={setAddAmount}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                        placeholderTextColor={textSecondary}
+                        autoFocus
+                      />
+                      <TouchableOpacity onPress={handleAddSavings} activeOpacity={0.7}>
+                        <Ionicons name="checkmark-circle" size={24} color={exceedsPrice ? warning : accent} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => { setShowAddSavings(false); setAddAmount(''); }} activeOpacity={0.7}>
+                        <Ionicons name="close-circle" size={24} color={textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+                    {exceedsPrice && (
+                      <View style={[styles.exceedWarning, { backgroundColor: danger + '15' }]}>
+                        <Ionicons name="alert-circle" size={14} color={danger} />
+                        <Text style={[styles.exceedWarningText, { color: danger }]}>
+                          Total saved exceeds item price
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 ) : (
                   <TouchableOpacity
@@ -139,10 +158,10 @@ export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings }
         )}
       </View>
 
-      {item.price != null && (
+      {priceToShow != null && (
         <View style={[styles.priceBadge, { backgroundColor: priceTag + '12' }]}>
           <Text style={[styles.price, { color: priceTag }]}>
-            {item.currency}{item.price.toLocaleString()}
+            {currencyToShow}{priceToShow.toLocaleString()}
           </Text>
         </View>
       )}
@@ -234,6 +253,9 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  addInputWrap: {
+    gap: 4,
+  },
   addInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -248,6 +270,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     minWidth: 50,
     paddingVertical: 0,
+  },
+  exceedWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  exceedWarningText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   priceBadge: {
     paddingHorizontal: 10,
