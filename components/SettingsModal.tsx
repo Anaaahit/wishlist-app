@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useSettings, ThemeMode } from '@/context/SettingsContext';
+import { useWishlist } from '@/context/WishlistContext';
 import { CURRENCIES } from '@/types/wishlist';
+import { DeletedWishesModal } from '@/components/DeletedWishesModal';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -20,6 +22,8 @@ interface SettingsModalProps {
 
 export function SettingsModal({ visible, onClose }: SettingsModalProps) {
   const { settings, updateSettings } = useSettings();
+  const { deletedItems } = useWishlist();
+  const [deletedWishesVisible, setDeletedWishesVisible] = useState(false);
 
   const surface = useThemeColor({}, 'surface');
   const text = useThemeColor({}, 'text');
@@ -27,6 +31,7 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
   const border = useThemeColor({}, 'border');
   const accent = useThemeColor({}, 'accent');
   const overlay = useThemeColor({}, 'overlay');
+  const danger = useThemeColor({}, 'danger');
 
   const themeOptions: { label: string; value: ThemeMode; icon: string }[] = [
     { label: 'System', value: 'system', icon: 'phone-portrait-outline' },
@@ -115,10 +120,34 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
                   </TouchableOpacity>
                 ))}
               </View>
-            </View>
+              <View style={[styles.divider, { backgroundColor: border }]} />
+
+              <TouchableOpacity
+                style={styles.deletedRow}
+                onPress={() => setDeletedWishesVisible(true)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.deletedIcon, { backgroundColor: danger + '15' }]}>
+                  <Ionicons name="trash-outline" size={20} color={danger} />
+                </View>
+                <View style={styles.deletedContent}>
+                  <Text style={[styles.deletedLabel, { color: text }]}>Deleted Wishes</Text>
+                  {deletedItems.length > 0 && (
+                    <Text style={[styles.deletedCount, { color: textSecondary }]}>
+                      {deletedItems.length} {deletedItems.length === 1 ? 'wish' : 'wishes'}
+                    </Text>
+                  )}
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={textSecondary} />
+              </TouchableOpacity>
+          </View>
           </View>
         </KeyboardAvoidingView>
       </View>
+      <DeletedWishesModal
+        visible={deletedWishesVisible}
+        onClose={() => setDeletedWishesVisible(false)}
+      />
     </Modal>
   );
 }
@@ -198,5 +227,33 @@ const styles = StyleSheet.create({
   currencyText: {
     fontSize: 20,
     fontWeight: '700',
+  },
+  divider: {
+    height: 1,
+    marginBottom: 8,
+  },
+  deletedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 12,
+  },
+  deletedIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deletedContent: {
+    flex: 1,
+  },
+  deletedLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deletedCount: {
+    fontSize: 12,
+    marginTop: 1,
   },
 });

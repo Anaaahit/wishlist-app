@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   FlatList,
+  TextInput,
+  TouchableOpacity,
   StyleSheet,
   Platform,
 } from 'react-native';
@@ -17,6 +19,7 @@ import { FAB } from '@/components/FAB';
 import { SortSelector } from '@/components/SortSelector';
 import { Confetti } from '@/components/Confetti';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { Snackbar } from '@/components/Snackbar';
 import { useSettings } from '@/context/SettingsContext';
 import { WishlistItem } from '@/types/wishlist';
 
@@ -32,17 +35,32 @@ export default function WishlistScreen() {
     updateItem,
     deleteItem,
     completeItem,
+    restoreFromTrash,
   } = useWishlist();
 
   const [formVisible, setFormVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WishlistItem | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [snackbarItem, setSnackbarItem] = useState<WishlistItem | null>(null);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
   const { settings } = useSettings();
 
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
   const accent = useThemeColor({}, 'accent');
+
+  const filteredItems = useMemo(() => {
+    if (!searchQuery.trim()) return activeItems;
+    const q = searchQuery.toLowerCase().trim();
+    return activeItems.filter(
+      (i) =>
+        i.title.toLowerCase().includes(q) ||
+        i.categories.some((c) => c.toLowerCase().includes(q)) ||
+        i.notes.toLowerCase().includes(q)
+    );
+  }, [activeItems, searchQuery]);
 
   const handleToggleComplete = (item: WishlistItem) => {
     completeItem(item.id);
@@ -61,10 +79,24 @@ export default function WishlistScreen() {
     setDeleteTarget(item);
   };
 
+  const showSnackbar = (item: WishlistItem) => {
+    setSnackbarItem(item);
+    setSnackbarVisible(true);
+  };
+
+  const handleUndoDelete = () => {
+    if (snackbarItem) {
+      restoreFromTrash(snackbarItem.id);
+      setSnackbarItem(null);
+    }
+  };
+
   const handleConfirmDelete = () => {
     if (deleteTarget) {
-      deleteItem(deleteTarget.id);
+      const item = deleteTarget;
+      deleteItem(item.id);
       setDeleteTarget(null);
+      showSnackbar(item);
     }
   };
 
@@ -79,8 +111,11 @@ export default function WishlistScreen() {
 
   const handleDelete = () => {
     if (editingItem) {
-      deleteItem(editingItem.id);
+      const item = editingItem;
+      deleteItem(item.id);
       setEditingItem(null);
+      setFormVisible(false);
+      showSnackbar(item);
     }
   };
 
@@ -114,18 +149,43 @@ export default function WishlistScreen() {
         <SortSelector value={sortBy} onChange={setSortBy} />
       </View>
 
+      <View style={[styles.searchContainer, { backgroundColor: useThemeColor({}, 'surfaceElevated'), borderColor: useThemeColor({}, 'border') }]}>
+        <Ionicons name="search" size={16} color={textSecondary} />
+        <TextInput
+          style={[styles.searchInput, { color: text }]}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search wishes..."
+          placeholderTextColor={textSecondary}
+          returnKeyType="search"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+            <Ionicons name="close-circle" size={18} color={textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+
       <FlatList
-        data={activeItems}
+        data={filteredItems}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="heart-outline" size={64} color={textSecondary} />
-            <Text style={[styles.emptyTitle, { color: text }]}>No wishes yet</Text>
+            <Ionicons
+              name={searchQuery.trim() ? 'search-outline' : 'heart-outline'}
+              size={64}
+              color={textSecondary}
+            />
+            <Text style={[styles.emptyTitle, { color: text }]}>
+              {searchQuery.trim() ? 'No results' : 'No wishes yet'}
+            </Text>
             <Text style={[styles.emptyText, { color: textSecondary }]}>
-              Tap the + button to add your first wish
+              {searchQuery.trim()
+                ? 'Try a different search term'
+                : 'Tap the + button to add your first wish'}
             </Text>
           </View>
         }
@@ -152,6 +212,14 @@ export default function WishlistScreen() {
           onCancel={() => setDeleteTarget(null)}
         />
       )}
+
+      <Snackbar
+        visible={snackbarVisible}
+        message="Wish deleted"
+        actionLabel="Undo"
+        onAction={handleUndoDelete}
+        onDismiss={() => setSnackbarVisible(false)}
+      />
     </View>
   );
 }
@@ -190,6 +258,22 @@ const styles = StyleSheet.create({
   countText: {
     fontSize: 15,
     fontWeight: '700',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    paddingVertical: 0,
   },
   list: {
     paddingTop: 4,
