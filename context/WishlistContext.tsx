@@ -34,11 +34,28 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     loadItems();
   }, []);
 
+  const normalizeItem = (item: Partial<WishlistItem>): WishlistItem => ({
+    id: item.id ?? generateId(),
+    title: item.title ?? '',
+    price: item.price ?? null,
+    currency: item.currency ?? '$',
+    imageUri: item.imageUri ?? null,
+    link: item.link ?? '',
+    notes: item.notes ?? '',
+    priority: item.priority ?? 'medium',
+    categories: item.categories ?? [],
+    savedAmount: item.savedAmount ?? 0,
+    completed: item.completed ?? false,
+    createdAt: item.createdAt ?? Date.now(),
+    completedAt: item.completedAt ?? null,
+  });
+
   const loadItems = async () => {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       if (stored) {
-        setItems(JSON.parse(stored));
+        const parsed: Partial<WishlistItem>[] = JSON.parse(stored);
+        setItems(parsed.map(normalizeItem));
       }
     } catch (e) {
       console.error('Failed to load wishlist items:', e);

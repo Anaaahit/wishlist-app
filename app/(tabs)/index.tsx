@@ -16,6 +16,7 @@ import { ItemFormModal } from '@/components/ItemFormModal';
 import { FAB } from '@/components/FAB';
 import { SortSelector } from '@/components/SortSelector';
 import { Confetti } from '@/components/Confetti';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { useSettings } from '@/context/SettingsContext';
 import { WishlistItem } from '@/types/wishlist';
 
@@ -35,6 +36,7 @@ export default function WishlistScreen() {
 
   const [formVisible, setFormVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WishlistItem | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const { settings } = useSettings();
 
@@ -53,6 +55,17 @@ export default function WishlistScreen() {
   const handleCardPress = (item: WishlistItem) => {
     setEditingItem(item);
     setFormVisible(true);
+  };
+
+  const handleCardLongPress = (item: WishlistItem) => {
+    setDeleteTarget(item);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteTarget) {
+      deleteItem(deleteTarget.id);
+      setDeleteTarget(null);
+    }
   };
 
   const handleSave = (data: any) => {
@@ -76,6 +89,7 @@ export default function WishlistScreen() {
       item={item}
       onToggleComplete={() => handleToggleComplete(item)}
       onPress={() => handleCardPress(item)}
+      onLongPress={() => handleCardLongPress(item)}
       onAddToSavings={(amount) => updateItem(item.id, { savedAmount: item.savedAmount + amount })}
     />
   );
@@ -127,6 +141,17 @@ export default function WishlistScreen() {
         onSave={handleSave}
         onDelete={editingItem ? handleDelete : undefined}
       />
+
+      {deleteTarget && (
+        <ConfirmModal
+          visible={!!deleteTarget}
+          title="Delete Wish"
+          message={`Are you sure you want to delete "${deleteTarget.title}"?`}
+          confirmLabel="Delete"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </View>
   );
 }

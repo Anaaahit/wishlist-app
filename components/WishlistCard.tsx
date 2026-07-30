@@ -19,10 +19,11 @@ interface WishlistCardProps {
   item: WishlistItem;
   onToggleComplete: () => void;
   onPress: () => void;
+  onLongPress?: () => void;
   onAddToSavings?: (amount: number) => void;
 }
 
-export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings }: WishlistCardProps) {
+export function WishlistCard({ item, onToggleComplete, onPress, onLongPress, onAddToSavings }: WishlistCardProps) {
   const surface = useThemeColor({}, 'surface');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
@@ -55,7 +56,9 @@ export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings }
     <TouchableOpacity
       style={[styles.card, { backgroundColor: surface, borderColor: border }]}
       onPress={onPress}
+      onLongPress={onLongPress}
       activeOpacity={0.7}
+      delayLongPress={500}
     >
       <TouchableOpacity
         style={[

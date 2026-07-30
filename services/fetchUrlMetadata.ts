@@ -46,7 +46,6 @@ export async function fetchUrlMetadata(url: string): Promise<UrlMetadata | null>
             '£': '£',
             '¥': '¥',
             '₹': '₹',
-            A$: 'A$',
           };
           for (const [sym, code] of Object.entries(symbolMap)) {
             if (prefix.includes(sym) || priceStr.startsWith(sym)) {

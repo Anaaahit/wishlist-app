@@ -14,9 +14,11 @@ export function SavingsGoalBar({ savedAmount, targetPrice, currency }: SavingsGo
   const textSecondary = useThemeColor({}, 'textSecondary');
   const success = useThemeColor({}, 'success');
 
-  const progress = Math.min(savedAmount / targetPrice, 1);
+  const progress = targetPrice > 0 ? Math.min(savedAmount / targetPrice, 1) : 0;
   const remaining = Math.max(targetPrice - savedAmount, 0);
-  const isComplete = savedAmount >= targetPrice;
+  const isComplete = targetPrice > 0 && savedAmount >= targetPrice;
+
+  const fmt = (n: number) => (n ?? 0).toLocaleString();
 
   return (
     <View style={styles.container}>
@@ -33,11 +35,11 @@ export function SavingsGoalBar({ savedAmount, targetPrice, currency }: SavingsGo
       </View>
       <View style={styles.labelRow}>
         <Text style={[styles.label, { color: textSecondary }]}>
-          Saved {currency}{savedAmount.toLocaleString()} of {currency}{targetPrice.toLocaleString()}
+          Saved {currency}{fmt(savedAmount)} of {currency}{fmt(targetPrice)}
         </Text>
         {!isComplete && (
           <Text style={[styles.remaining, { color: textSecondary }]}>
-            {currency}{remaining.toLocaleString()} left
+            {currency}{fmt(remaining)} left
           </Text>
         )}
       </View>

@@ -38,6 +38,11 @@ export default function CompletedScreen() {
     }
   };
 
+  const handleDeletePress = () => {
+    setActionModalVisible(false);
+    setTimeout(() => setDeleteModalVisible(true), 300);
+  };
+
   const handleConfirmDelete = () => {
     if (selectedItem) {
       deleteItem(selectedItem.id);
@@ -89,6 +94,8 @@ export default function CompletedScreen() {
             setActionModalVisible(false);
             setSelectedItem(null);
           }}
+          secondaryLabel="Delete"
+          onSecondary={handleDeletePress}
         />
       )}
 
