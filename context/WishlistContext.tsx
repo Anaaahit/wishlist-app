@@ -7,13 +7,16 @@ const STORAGE_KEY = '@wishlist_items';
 interface WishlistContextType {
   items: WishlistItem[];
   isLoading: boolean;
-  addItem: (item: Omit<WishlistItem, 'id' | 'createdAt' | 'completed' | 'completedAt'>) => void;
+  addItem: (item: Omit<WishlistItem, 'id' | 'createdAt' | 'completed' | 'completedAt' | 'trashed'>) => void;
   updateItem: (id: string, updates: Partial<WishlistItem>) => void;
   deleteItem: (id: string) => void;
+  permanentDeleteItem: (id: string) => void;
   completeItem: (id: string) => void;
   restoreItem: (id: string) => void;
+  restoreFromTrash: (id: string) => void;
   activeItems: WishlistItem[];
   completedItems: WishlistItem[];
+  deletedItems: WishlistItem[];
   totalActiveValue: number;
   sortBy: SortOption;
   setSortBy: (sort: SortOption) => void;
@@ -34,11 +37,29 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     loadItems();
   }, []);
 
+  const normalizeItem = (item: Partial<WishlistItem>): WishlistItem => ({
+    id: item.id ?? generateId(),
+    title: item.title ?? '',
+    price: item.price ?? null,
+    currency: item.currency ?? '$',
+    imageUri: item.imageUri ?? null,
+    link: item.link ?? '',
+    notes: item.notes ?? '',
+    priority: item.priority ?? 'medium',
+    categories: item.categories ?? [],
+    savedAmount: item.savedAmount ?? 0,
+    completed: item.completed ?? false,
+    trashed: item.trashed ?? false,
+    createdAt: item.createdAt ?? Date.now(),
+    completedAt: item.completedAt ?? null,
+  });
+
   const loadItems = async () => {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       if (stored) {
-        setItems(JSON.parse(stored));
+        const parsed: Partial<WishlistItem>[] = JSON.parse(stored);
+        setItems(parsed.map(normalizeItem));
       }
     } catch (e) {
       console.error('Failed to load wishlist items:', e);
@@ -57,7 +78,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addItem = useCallback(
-    (item: Omit<WishlistItem, 'id' | 'createdAt' | 'completed' | 'completedAt'>) => {
+    (item: Omit<WishlistItem, 'id' | 'createdAt' | 'completed' | 'completedAt' | 'trashed'>) => {
       const newItem: WishlistItem = {
         ...item,
         savedAmount: item.savedAmount ?? 0,
@@ -65,6 +86,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         createdAt: Date.now(),
         completed: false,
         completedAt: null,
+        trashed: false,
       };
       saveItems([newItem, ...items]);
     },
@@ -80,7 +102,21 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
 
   const deleteItem = useCallback(
     (id: string) => {
+      saveItems(items.map((item) => (item.id === id ? { ...item, trashed: true } : item)));
+    },
+    [items, saveItems]
+  );
+
+  const permanentDeleteItem = useCallback(
+    (id: string) => {
       saveItems(items.filter((item) => item.id !== id));
+    },
+    [items, saveItems]
+  );
+
+  const restoreFromTrash = useCallback(
+    (id: string) => {
+      saveItems(items.map((item) => (item.id === id ? { ...item, trashed: false } : item)));
     },
     [items, saveItems]
   );
@@ -127,8 +163,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     [sortBy]
   );
 
-  const activeItems = sortItems(items.filter((item) => !item.completed));
-  const completedItems = sortItems(items.filter((item) => item.completed));
+  const activeItems = sortItems(items.filter((item) => !item.completed && !item.trashed));
+  const completedItems = sortItems(items.filter((item) => item.completed && !item.trashed));
+  const deletedItems = sortItems(items.filter((item) => item.trashed));
   const totalActiveValue = activeItems.reduce((sum, item) => sum + (item.price ?? 0), 0);
 
   return (
@@ -139,10 +176,13 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         addItem,
         updateItem,
         deleteItem,
+        permanentDeleteItem,
         completeItem,
         restoreItem,
+        restoreFromTrash,
         activeItems,
         completedItems,
+        deletedItems,
         totalActiveValue,
         sortBy,
         setSortBy,

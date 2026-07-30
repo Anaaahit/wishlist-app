@@ -11,6 +11,9 @@ interface ConfirmModalProps {
   confirmColor?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  secondaryLabel?: string;
+  secondaryColor?: string;
+  onSecondary?: () => void;
 }
 
 export function ConfirmModal({
@@ -21,6 +24,9 @@ export function ConfirmModal({
   confirmColor,
   onConfirm,
   onCancel,
+  secondaryLabel,
+  secondaryColor,
+  onSecondary,
 }: ConfirmModalProps) {
   const surface = useThemeColor({}, 'surface');
   const text = useThemeColor({}, 'text');
@@ -29,6 +35,7 @@ export function ConfirmModal({
   const overlay = useThemeColor({}, 'overlay');
   const dangerColor = useThemeColor({}, 'danger');
   const danger = confirmColor ?? dangerColor;
+  const secondaryDanger = secondaryColor ?? dangerColor;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -51,6 +58,15 @@ export function ConfirmModal({
             >
               <Text style={[styles.cancelText, { color: textSecondary }]}>Cancel</Text>
             </TouchableOpacity>
+            {secondaryLabel && onSecondary && (
+              <TouchableOpacity
+                style={[styles.button, styles.confirmBtn, { backgroundColor: secondaryDanger }]}
+                onPress={onSecondary}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.confirmText}>{secondaryLabel}</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[styles.button, styles.confirmBtn, { backgroundColor: danger }]}
               onPress={onConfirm}
