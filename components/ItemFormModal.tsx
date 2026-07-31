@@ -350,7 +350,7 @@ export function ItemFormModal({ visible, item, onClose, onSave, onDelete, items 
                   placeholder="Any additional notes..."
                   placeholderTextColor={textSecondary}
                   multiline
-                  numberOfLines={3}
+                  scrollEnabled={false}
                   textAlignVertical="top"
                 />
               </View>
