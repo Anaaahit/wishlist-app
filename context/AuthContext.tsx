@@ -11,8 +11,10 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<boolean>;
   login: (email: string, password: string) => Promise<void>;
+  sendVerificationCode: (email: string) => Promise<void>;
+  verifyCode: (email: string, code: string) => Promise<void>;
   loginAsGuest: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -28,6 +30,8 @@ const friendlyMessage = (msg: string): string => {
   if (m.includes('password should be at least')) return 'Password must be at least 6 characters.';
   if (m.includes('not confirmed')) return 'Please confirm your email first, then log in.';
   if (m.includes('valid email')) return 'Please enter a valid email address.';
+  if (m.includes('token has expired') || m.includes('invalid token')) return 'The code is incorrect or has expired.';
+  if (m.includes('unable to validate')) return 'The code is incorrect or has expired.';
   return msg;
 };
 
@@ -112,10 +116,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
     });
     if (error) throw new Error(friendlyMessage(error.message));
-    if (!data.session) {
-      throw new Error('Check your email to confirm your account, then log in.');
+    if (data.session) {
+      await AsyncStorage.removeItem(GUEST_KEY);
+      return false;
     }
-    await AsyncStorage.removeItem(GUEST_KEY);
+    const { error: otpError } = await supabase!.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: { shouldCreateUser: false },
+    });
+    if (otpError) throw new Error(friendlyMessage(otpError.message));
+    return true;
+  }, []);
+
+  const sendVerificationCode = useCallback(async (email: string) => {
+    requireSupabase();
+    const { error } = await supabase!.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: { shouldCreateUser: false },
+    });
+    if (error) throw new Error(friendlyMessage(error.message));
+  }, []);
+
+  const verifyCode = useCallback(async (email: string, code: string) => {
+    requireSupabase();
+    const { data, error } = await supabase!.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: code.trim(),
+      type: 'email',
+    });
+    if (error) throw new Error(friendlyMessage(error.message));
+    if (data.session) {
+      await AsyncStorage.removeItem(GUEST_KEY);
+      setUser({
+        id: data.session.user.id,
+        email: data.session.user.email ?? '',
+        isGuest: false,
+      });
+    } else {
+      throw new Error('Verification succeeded, but no session was created. Please log in.');
+    }
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -146,7 +185,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, register, login, loginAsGuest, logout }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, register, login, sendVerificationCode, verifyCode, loginAsGuest, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

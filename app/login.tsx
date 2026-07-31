@@ -19,7 +19,7 @@ type Mode = 'login' | 'register';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { login, register, loginAsGuest } = useAuth();
+  const { login, register, sendVerificationCode, verifyCode, loginAsGuest } = useAuth();
 
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
@@ -28,6 +28,9 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [verifyingEmail, setVerifyingEmail] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [codeSending, setCodeSending] = useState(false);
 
   const background = useThemeColor({}, 'background');
   const surface = useThemeColor({}, 'surface');
@@ -69,7 +72,10 @@ export default function LoginScreen() {
     setSubmitting(true);
     try {
       if (mode === 'register') {
-        await register(trimmedEmail, password);
+        const needsCode = await register(trimmedEmail, password);
+        if (needsCode) {
+          setVerifyingEmail(trimmedEmail);
+        }
       } else {
         await login(trimmedEmail, password);
       }
@@ -78,6 +84,40 @@ export default function LoginScreen() {
       setError(errorMessage(e));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!verifyingEmail) return;
+    if (submitting) return;
+    setError(null);
+    if (!code.trim()) {
+      setError('Please enter the code from your email.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await verifyCode(verifyingEmail, code);
+    } catch (e) {
+      console.error('Code verify error:', e);
+      setError(errorMessage(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!verifyingEmail || codeSending) return;
+    setError(null);
+    setCodeSending(true);
+    try {
+      await sendVerificationCode(verifyingEmail);
+      setError('A new code was sent to your email.');
+    } catch (e) {
+      console.error('Resend code error:', e);
+      setError(errorMessage(e));
+    } finally {
+      setCodeSending(false);
     }
   };
 
@@ -117,108 +157,175 @@ export default function LoginScreen() {
         </View>
 
         <View style={[styles.card, { backgroundColor: surface, borderColor: border }]}>
-          <View style={[styles.segment, { backgroundColor: surfaceElevated, borderColor: border }]}>
-            {(['login', 'register'] as Mode[]).map((m) => (
-              <TouchableOpacity
-                key={m}
-                style={[styles.segmentBtn, mode === m && { backgroundColor: accent }]}
-                onPress={() => switchMode(m)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.segmentLabel,
-                    { color: mode === m ? '#FFFFFF' : textSecondary, fontWeight: mode === m ? '700' : '500' },
-                  ]}
-                >
-                  {m === 'login' ? 'Log In' : 'Create Account'}
+          {verifyingEmail ? (
+            <>
+              <View style={styles.verifyHeader}>
+                <View style={[styles.verifyIcon, { backgroundColor: accent + '18' }]}>
+                  <Ionicons name="mail-outline" size={28} color={accent} />
+                </View>
+                <Text style={[styles.verifyTitle, { color: text }]}>Check your email</Text>
+                <Text style={[styles.verifySubtitle, { color: textSecondary }]}>
+                  We sent a 6-digit code to {verifyingEmail}. Enter it below to finish setting up your account.
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.field}>
-            <Text style={[styles.label, { color: textSecondary }]}>Email</Text>
-            <View style={[styles.inputWrap, { backgroundColor: surfaceElevated, borderColor: border }]}>
-              <Ionicons name="mail-outline" size={18} color={textSecondary} />
-              <TextInput
-                style={[styles.input, { color: text }]}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@example.com"
-                placeholderTextColor={textSecondary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="email"
-              />
-            </View>
-          </View>
-
-          <View style={styles.field}>
-            <Text style={[styles.label, { color: textSecondary }]}>Password</Text>
-            <View style={[styles.inputWrap, { backgroundColor: surfaceElevated, borderColor: border }]}>
-              <Ionicons name="lock-closed-outline" size={18} color={textSecondary} />
-              <TextInput
-                style={[styles.input, { color: text }]}
-                value={password}
-                onChangeText={setPassword}
-                placeholder={mode === 'register' ? 'At least 6 characters' : 'Your password'}
-                placeholderTextColor={textSecondary}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete={mode === 'register' ? 'new-password' : 'password'}
-              />
-              <TouchableOpacity onPress={() => setShowPassword((v) => !v)} activeOpacity={0.7}>
-                <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color={textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {mode === 'register' && (
-            <View style={styles.field}>
-              <Text style={[styles.label, { color: textSecondary }]}>Confirm Password</Text>
-              <View style={[styles.inputWrap, { backgroundColor: surfaceElevated, borderColor: border }]}>
-                <Ionicons name="lock-closed-outline" size={18} color={textSecondary} />
-                <TextInput
-                  style={[styles.input, { color: text }]}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Repeat your password"
-                  placeholderTextColor={textSecondary}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="new-password"
-                />
               </View>
-            </View>
-          )}
 
-          {error && (
-            <View style={[styles.errorWrap, { backgroundColor: danger + '12' }]}>
-              <Ionicons name="alert-circle" size={16} color={danger} />
-              <Text style={[styles.errorText, { color: danger }]}>{error}</Text>
-            </View>
-          )}
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: textSecondary }]}>Verification code</Text>
+                <View style={[styles.inputWrap, { backgroundColor: surfaceElevated, borderColor: border }]}>
+                  <Ionicons name="key-outline" size={18} color={textSecondary} />
+                  <TextInput
+                    style={[styles.input, { color: text }]}
+                    value={code}
+                    onChangeText={setCode}
+                    placeholder="123456"
+                    placeholderTextColor={textSecondary}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    autoFocus
+                  />
+                </View>
+              </View>
 
-          <TouchableOpacity
-            style={[styles.submitBtn, { backgroundColor: accent, opacity: submitting ? 0.6 : 1 }]}
-            onPress={handleSubmit}
-            disabled={submitting}
-            activeOpacity={0.8}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.submitText}>{mode === 'login' ? 'Log In' : 'Create Account'}</Text>
-            )}
-          </TouchableOpacity>
+              {error && (
+                <View style={[styles.errorWrap, { backgroundColor: danger + '12' }]}>
+                  <Ionicons name="alert-circle" size={16} color={danger} />
+                  <Text style={[styles.errorText, { color: danger }]}>{error}</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[styles.submitBtn, { backgroundColor: accent, opacity: submitting ? 0.6 : 1 }]}
+                onPress={handleVerifyCode}
+                disabled={submitting}
+                activeOpacity={0.8}
+              >
+                {submitting ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitText}>Verify</Text>
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.verifyActions}>
+                <TouchableOpacity onPress={handleResendCode} disabled={codeSending} activeOpacity={0.7}>
+                  <Text style={[styles.verifyLink, { color: accent }]}>
+                    {codeSending ? 'Sending...' : 'Resend code'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => { setVerifyingEmail(null); setCode(''); setError(null); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.verifyLink, { color: textSecondary }]}>Use a different email</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={[styles.segment, { backgroundColor: surfaceElevated, borderColor: border }]}>
+                {(['login', 'register'] as Mode[]).map((m) => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[styles.segmentBtn, mode === m && { backgroundColor: accent }]}
+                    onPress={() => switchMode(m)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentLabel,
+                        { color: mode === m ? '#FFFFFF' : textSecondary, fontWeight: mode === m ? '700' : '500' },
+                      ]}
+                    >
+                      {m === 'login' ? 'Log In' : 'Create Account'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: textSecondary }]}>Email</Text>
+                <View style={[styles.inputWrap, { backgroundColor: surfaceElevated, borderColor: border }]}>
+                  <Ionicons name="mail-outline" size={18} color={textSecondary} />
+                  <TextInput
+                    style={[styles.input, { color: text }]}
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="you@example.com"
+                    placeholderTextColor={textSecondary}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: textSecondary }]}>Password</Text>
+                <View style={[styles.inputWrap, { backgroundColor: surfaceElevated, borderColor: border }]}>
+                  <Ionicons name="lock-closed-outline" size={18} color={textSecondary} />
+                  <TextInput
+                    style={[styles.input, { color: text }]}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder={mode === 'register' ? 'At least 6 characters' : 'Your password'}
+                    placeholderTextColor={textSecondary}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete={mode === 'register' ? 'new-password' : 'password'}
+                  />
+                  <TouchableOpacity onPress={() => setShowPassword((v) => !v)} activeOpacity={0.7}>
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={20}
+                      color={textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {mode === 'register' && (
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: textSecondary }]}>Confirm Password</Text>
+                  <View style={[styles.inputWrap, { backgroundColor: surfaceElevated, borderColor: border }]}>
+                    <Ionicons name="lock-closed-outline" size={18} color={textSecondary} />
+                    <TextInput
+                      style={[styles.input, { color: text }]}
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      placeholder="Repeat your password"
+                      placeholderTextColor={textSecondary}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      autoComplete="new-password"
+                    />
+                  </View>
+                </View>
+              )}
+
+              {error && (
+                <View style={[styles.errorWrap, { backgroundColor: danger + '12' }]}>
+                  <Ionicons name="alert-circle" size={16} color={danger} />
+                  <Text style={[styles.errorText, { color: danger }]}>{error}</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[styles.submitBtn, { backgroundColor: accent, opacity: submitting ? 0.6 : 1 }]}
+                onPress={handleSubmit}
+                disabled={submitting}
+                activeOpacity={0.8}
+              >
+                {submitting ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitText}>{mode === 'login' ? 'Log In' : 'Create Account'}</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         <View style={styles.guestRow}>
@@ -326,6 +433,37 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  verifyHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  verifyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  verifyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  verifySubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 19,
+  },
+  verifyActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  verifyLink: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   guestRow: {
     flexDirection: 'row',
