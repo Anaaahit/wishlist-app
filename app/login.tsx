@@ -17,20 +17,20 @@ import { useAuth } from '@/context/AuthContext';
 
 type Mode = 'login' | 'register';
 
+const PIN_LENGTH = 4;
+
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { login, register, sendVerificationCode, verifyCode, loginAsGuest } = useAuth();
+  const { login, register, verifyPin, loginAsGuest } = useAuth();
 
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pin, setPin] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [verifyingEmail, setVerifyingEmail] = useState<string | null>(null);
-  const [code, setCode] = useState('');
-  const [codeSending, setCodeSending] = useState(false);
+  const [pinStep, setPinStep] = useState(false);
 
   const background = useThemeColor({}, 'background');
   const surface = useThemeColor({}, 'surface');
@@ -43,6 +43,8 @@ export default function LoginScreen() {
 
   const switchMode = (next: Mode) => {
     setMode(next);
+    setPinStep(false);
+    setPin('');
     setError(null);
   };
 
@@ -60,24 +62,34 @@ export default function LoginScreen() {
     setError(null);
 
     const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password) {
-      setError('Please fill in your email and password.');
+    if (!trimmedEmail) {
+      setError('Please enter your email.');
       return;
     }
-    if (mode === 'register' && password !== confirmPassword) {
-      setError('Passwords do not match.');
+    if (!password) {
+      setError('Please enter your password.');
       return;
+    }
+    if (mode === 'register') {
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters.');
+        return;
+      }
+      if (!/^\d{4}$/.test(pin)) {
+        setError('Please choose a 4-digit passkey.');
+        return;
+      }
     }
 
     setSubmitting(true);
     try {
       if (mode === 'register') {
-        const needsCode = await register(trimmedEmail, password);
-        if (needsCode) {
-          setVerifyingEmail(trimmedEmail);
-        }
+        await register(trimmedEmail, password, pin);
       } else {
-        await login(trimmedEmail, password);
+        const needsPin = await login(trimmedEmail, password);
+        if (needsPin) {
+          setPinStep(true);
+        }
       }
     } catch (e) {
       console.error('Auth error:', e);
@@ -87,38 +99,28 @@ export default function LoginScreen() {
     }
   };
 
-  const handleVerifyCode = async () => {
-    if (!verifyingEmail) return;
+  const handleVerifyPin = async () => {
     if (submitting) return;
     setError(null);
-    if (!code.trim()) {
-      setError('Please enter the code from your email.');
+    if (!/^\d{4}$/.test(pin)) {
+      setError('Please enter your 4-digit passkey.');
       return;
     }
     setSubmitting(true);
     try {
-      await verifyCode(verifyingEmail, code);
+      await verifyPin(pin);
     } catch (e) {
-      console.error('Code verify error:', e);
+      console.error('PIN verify error:', e);
       setError(errorMessage(e));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleResendCode = async () => {
-    if (!verifyingEmail || codeSending) return;
+  const handleBack = () => {
+    setPinStep(false);
+    setPin('');
     setError(null);
-    setCodeSending(true);
-    try {
-      await sendVerificationCode(verifyingEmail);
-      setError('A new code was sent to your email.');
-    } catch (e) {
-      console.error('Resend code error:', e);
-      setError(errorMessage(e));
-    } finally {
-      setCodeSending(false);
-    }
   };
 
   const handleGuest = async () => {
@@ -134,6 +136,31 @@ export default function LoginScreen() {
       setSubmitting(false);
     }
   };
+
+  const renderPinField = (label: string, value: string, onChange: (value: string) => void) => (
+    <View style={styles.field}>
+      <Text style={[styles.label, { color: textSecondary }]}>{label}</Text>
+      <View style={[styles.inputWrap, { backgroundColor: surfaceElevated, borderColor: border }]}>
+        <Ionicons name="keypad-outline" size={18} color={textSecondary} />
+        <TextInput
+          style={[styles.input, { color: text }]}
+          value={value}
+          onChangeText={(t) => onChange(t.replace(/[^0-9]/g, '').slice(0, PIN_LENGTH))}
+          placeholder="Enter 4 digits"
+          placeholderTextColor={textSecondary}
+          keyboardType="number-pad"
+          secureTextEntry
+          maxLength={PIN_LENGTH}
+        />
+      </View>
+    </View>
+  );
+
+  const subtitle = pinStep
+    ? 'Enter your 4-digit passkey to finish logging in'
+    : mode === 'login'
+      ? 'Welcome back, log in to continue'
+      : 'Set a password and a 4-digit passkey';
 
   return (
     <KeyboardAvoidingView
@@ -151,40 +178,23 @@ export default function LoginScreen() {
             <Ionicons name="heart" size={44} color={accent} />
           </View>
           <Text style={[styles.brandTitle, { color: text }]}>Wishlist</Text>
-          <Text style={[styles.brandSubtitle, { color: textSecondary }]}>
-            {mode === 'login' ? 'Welcome back, log in to continue' : 'Create an account to get started'}
-          </Text>
+          <Text style={[styles.brandSubtitle, { color: textSecondary }]}>{subtitle}</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: surface, borderColor: border }]}>
-          {verifyingEmail ? (
+          {pinStep ? (
             <>
-              <View style={styles.verifyHeader}>
-                <View style={[styles.verifyIcon, { backgroundColor: accent + '18' }]}>
-                  <Ionicons name="mail-outline" size={28} color={accent} />
+              <View style={styles.pinHeader}>
+                <View style={[styles.pinIcon, { backgroundColor: accent + '18' }]}>
+                  <Ionicons name="shield-checkmark" size={28} color={accent} />
                 </View>
-                <Text style={[styles.verifyTitle, { color: text }]}>Check your email</Text>
-                <Text style={[styles.verifySubtitle, { color: textSecondary }]}>
-                  We sent a 6-digit code to {verifyingEmail}. Enter it below to finish setting up your account.
+                <Text style={[styles.pinTitle, { color: text }]}>Passkey required</Text>
+                <Text style={[styles.pinSubtitle, { color: textSecondary }]}>
+                  Password verified. Enter your 4-digit passkey to finish logging in.
                 </Text>
               </View>
 
-              <View style={styles.field}>
-                <Text style={[styles.label, { color: textSecondary }]}>Verification code</Text>
-                <View style={[styles.inputWrap, { backgroundColor: surfaceElevated, borderColor: border }]}>
-                  <Ionicons name="key-outline" size={18} color={textSecondary} />
-                  <TextInput
-                    style={[styles.input, { color: text }]}
-                    value={code}
-                    onChangeText={setCode}
-                    placeholder="123456"
-                    placeholderTextColor={textSecondary}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    autoFocus
-                  />
-                </View>
-              </View>
+              {renderPinField('Passkey', pin, setPin)}
 
               {error && (
                 <View style={[styles.errorWrap, { backgroundColor: danger + '12' }]}>
@@ -195,7 +205,7 @@ export default function LoginScreen() {
 
               <TouchableOpacity
                 style={[styles.submitBtn, { backgroundColor: accent, opacity: submitting ? 0.6 : 1 }]}
-                onPress={handleVerifyCode}
+                onPress={handleVerifyPin}
                 disabled={submitting}
                 activeOpacity={0.8}
               >
@@ -206,19 +216,9 @@ export default function LoginScreen() {
                 )}
               </TouchableOpacity>
 
-              <View style={styles.verifyActions}>
-                <TouchableOpacity onPress={handleResendCode} disabled={codeSending} activeOpacity={0.7}>
-                  <Text style={[styles.verifyLink, { color: accent }]}>
-                    {codeSending ? 'Sending...' : 'Resend code'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => { setVerifyingEmail(null); setCode(''); setError(null); }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.verifyLink, { color: textSecondary }]}>Use a different email</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity style={styles.backBtn} onPress={handleBack} activeOpacity={0.7}>
+                <Text style={[styles.backText, { color: textSecondary }]}>Back to log in</Text>
+              </TouchableOpacity>
             </>
           ) : (
             <>
@@ -268,7 +268,7 @@ export default function LoginScreen() {
                     style={[styles.input, { color: text }]}
                     value={password}
                     onChangeText={setPassword}
-                    placeholder={mode === 'register' ? 'At least 6 characters' : 'Your password'}
+                    placeholder="Your password"
                     placeholderTextColor={textSecondary}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
@@ -285,25 +285,7 @@ export default function LoginScreen() {
                 </View>
               </View>
 
-              {mode === 'register' && (
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: textSecondary }]}>Confirm Password</Text>
-                  <View style={[styles.inputWrap, { backgroundColor: surfaceElevated, borderColor: border }]}>
-                    <Ionicons name="lock-closed-outline" size={18} color={textSecondary} />
-                    <TextInput
-                      style={[styles.input, { color: text }]}
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                      placeholder="Repeat your password"
-                      placeholderTextColor={textSecondary}
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      autoComplete="new-password"
-                    />
-                  </View>
-                </View>
-              )}
+              {mode === 'register' && renderPinField('Passkey (4 digits)', pin, setPin)}
 
               {error && (
                 <View style={[styles.errorWrap, { backgroundColor: danger + '12' }]}>
@@ -369,6 +351,7 @@ const styles = StyleSheet.create({
   brandSubtitle: {
     fontSize: 14,
     marginTop: 6,
+    textAlign: 'center',
   },
   card: {
     borderRadius: 20,
@@ -411,6 +394,28 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     fontSize: 16,
   },
+  pinHeader: {
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  pinIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  pinTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  pinSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 19,
+  },
   errorWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -434,34 +439,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  verifyHeader: {
+  backBtn: {
     alignItems: 'center',
-    marginBottom: 20,
+    paddingVertical: 6,
   },
-  verifyIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  verifyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  verifySubtitle: {
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 19,
-  },
-  verifyActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 16,
-  },
-  verifyLink: {
+  backText: {
     fontSize: 14,
     fontWeight: '600',
   },

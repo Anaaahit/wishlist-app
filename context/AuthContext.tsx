@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 import { supabase } from '@/services/supabase';
 
 export interface User {
@@ -8,13 +9,18 @@ export interface User {
   isGuest: boolean;
 }
 
+interface PendingLogin {
+  email: string;
+  password: string;
+  pinHash: string;
+}
+
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  register: (email: string, password: string) => Promise<boolean>;
-  login: (email: string, password: string) => Promise<void>;
-  sendVerificationCode: (email: string) => Promise<void>;
-  verifyCode: (email: string, code: string) => Promise<void>;
+  register: (email: string, password: string, pin: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<boolean>;
+  verifyPin: (pin: string) => Promise<void>;
   loginAsGuest: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -28,11 +34,13 @@ const friendlyMessage = (msg: string): string => {
   if (m.includes('invalid login credentials')) return 'Incorrect email or password.';
   if (m.includes('already registered')) return 'An account with this email already exists. Try logging in.';
   if (m.includes('password should be at least')) return 'Password must be at least 6 characters.';
-  if (m.includes('not confirmed')) return 'Please confirm your email first, then log in.';
   if (m.includes('valid email')) return 'Please enter a valid email address.';
-  if (m.includes('token has expired') || m.includes('invalid token')) return 'The code is incorrect or has expired.';
-  if (m.includes('unable to validate')) return 'The code is incorrect or has expired.';
+  if (m.includes('not confirmed')) return 'Please confirm your email first, then log in.';
   return msg;
+};
+
+const hashPin = async (email: string, pin: string): Promise<string> => {
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${email.trim().toLowerCase()}:${pin}`);
 };
 
 const requireSupabase = (): void => {
@@ -45,7 +53,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const pendingPassword = useRef<string | null>(null);
+  const ignoreSession = useRef(false);
+  const pendingLogin = useRef<PendingLogin | null>(null);
 
   const checkGuest = useCallback(async (): Promise<boolean> => {
     const flag = await AsyncStorage.getItem(GUEST_KEY);
@@ -93,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let subscription: { unsubscribe: () => void } | null = null;
     if (supabase) {
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (!mounted) return;
+        if (!mounted || ignoreSession.current) return;
         if (session?.user) {
           setUser({ id: session.user.id, email: session.user.email ?? '', isGuest: false });
         } else {
@@ -111,57 +120,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [checkGuest]);
 
-  const register = useCallback(async (email: string, password: string) => {
+  const register = useCallback(async (email: string, password: string, pin: string) => {
     requireSupabase();
-    const normalized = email.trim().toLowerCase();
-    const { error } = await supabase!.auth.signInWithOtp({
-      email: normalized,
-      options: { shouldCreateUser: true },
-    });
-    if (error) throw new Error(friendlyMessage(error.message));
-    pendingPassword.current = password;
-    return true;
-  }, []);
-
-  const sendVerificationCode = useCallback(async (email: string) => {
-    requireSupabase();
-    const { error } = await supabase!.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
-      options: { shouldCreateUser: true },
-    });
-    if (error) throw new Error(friendlyMessage(error.message));
-  }, []);
-
-  const verifyCode = useCallback(async (email: string, code: string) => {
-    requireSupabase();
-    const { data, error } = await supabase!.auth.verifyOtp({
-      email: email.trim().toLowerCase(),
-      token: code.trim(),
-      type: 'email',
-    });
-    if (error) throw new Error(friendlyMessage(error.message));
-    if (!data.session) {
-      throw new Error('Verification succeeded, but no session was created. Please log in.');
-    }
-    if (pendingPassword.current) {
-      const { error: pwError } = await supabase!.auth.updateUser({ password: pendingPassword.current });
-      pendingPassword.current = null;
-      if (pwError) throw new Error(friendlyMessage(pwError.message));
-    }
-    await AsyncStorage.removeItem(GUEST_KEY);
-    setUser({
-      id: data.session.user.id,
-      email: data.session.user.email ?? '',
-      isGuest: false,
-    });
-  }, []);
-
-  const login = useCallback(async (email: string, password: string) => {
-    requireSupabase();
-    const { error } = await supabase!.auth.signInWithPassword({
+    const pinHash = await hashPin(email, pin);
+    const { error } = await supabase!.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
+      options: { data: { pinHash } },
     });
+    if (error) throw new Error(friendlyMessage(error.message));
+    await AsyncStorage.removeItem(GUEST_KEY);
+  }, []);
+
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+    requireSupabase();
+    const normalized = email.trim().toLowerCase();
+    ignoreSession.current = true;
+    try {
+      const { data, error } = await supabase!.auth.signInWithPassword({
+        email: normalized,
+        password,
+      });
+      if (error) throw new Error(friendlyMessage(error.message));
+      const pinHash = data.user?.user_metadata?.pinHash as string | undefined;
+      if (!pinHash) {
+        await AsyncStorage.removeItem(GUEST_KEY);
+        return false;
+      }
+      await supabase!.auth.signOut();
+      pendingLogin.current = { email: normalized, password, pinHash };
+      return true;
+    } finally {
+      ignoreSession.current = false;
+    }
+  }, []);
+
+  const verifyPin = useCallback(async (pin: string) => {
+    requireSupabase();
+    const pending = pendingLogin.current;
+    if (!pending) throw new Error('Please log in again with your email and password.');
+    const pinHash = await hashPin(pending.email, pin);
+    if (pinHash !== pending.pinHash) {
+      throw new Error('Incorrect PIN. Please try again.');
+    }
+    const { error } = await supabase!.auth.signInWithPassword({
+      email: pending.email,
+      password: pending.password,
+    });
+    pendingLogin.current = null;
     if (error) throw new Error(friendlyMessage(error.message));
     await AsyncStorage.removeItem(GUEST_KEY);
   }, []);
@@ -185,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, register, login, sendVerificationCode, verifyCode, loginAsGuest, logout }}
+      value={{ user, isLoading, register, login, verifyPin, loginAsGuest, logout }}
     >
       {children}
     </AuthContext.Provider>
