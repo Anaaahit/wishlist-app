@@ -12,6 +12,7 @@ export interface WishlistItem {
   categories: string[];
   savedAmount: number;
   completed: boolean;
+  trashed: boolean;
   createdAt: number;
   completedAt: number | null;
 }
