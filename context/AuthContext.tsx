@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/services/supabase';
 
@@ -44,6 +44,8 @@ const requireSupabase = (): void => {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const pendingPassword = useRef<string | null>(null);
 
   const checkGuest = useCallback(async (): Promise<boolean> => {
     const flag = await AsyncStorage.getItem(GUEST_KEY);
@@ -111,20 +113,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(async (email: string, password: string) => {
     requireSupabase();
-    const { data, error } = await supabase!.auth.signUp({
-      email: email.trim().toLowerCase(),
-      password,
+    const normalized = email.trim().toLowerCase();
+    const { error } = await supabase!.auth.signInWithOtp({
+      email: normalized,
+      options: { shouldCreateUser: true },
     });
     if (error) throw new Error(friendlyMessage(error.message));
-    if (data.session) {
-      await AsyncStorage.removeItem(GUEST_KEY);
-      return false;
-    }
-    const { error: otpError } = await supabase!.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
-      options: { shouldCreateUser: false },
-    });
-    if (otpError) throw new Error(friendlyMessage(otpError.message));
+    pendingPassword.current = password;
     return true;
   }, []);
 
@@ -132,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     requireSupabase();
     const { error } = await supabase!.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
-      options: { shouldCreateUser: false },
+      options: { shouldCreateUser: true },
     });
     if (error) throw new Error(friendlyMessage(error.message));
   }, []);
@@ -145,16 +140,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       type: 'email',
     });
     if (error) throw new Error(friendlyMessage(error.message));
-    if (data.session) {
-      await AsyncStorage.removeItem(GUEST_KEY);
-      setUser({
-        id: data.session.user.id,
-        email: data.session.user.email ?? '',
-        isGuest: false,
-      });
-    } else {
+    if (!data.session) {
       throw new Error('Verification succeeded, but no session was created. Please log in.');
     }
+    if (pendingPassword.current) {
+      const { error: pwError } = await supabase!.auth.updateUser({ password: pendingPassword.current });
+      pendingPassword.current = null;
+      if (pwError) throw new Error(friendlyMessage(pwError.message));
+    }
+    await AsyncStorage.removeItem(GUEST_KEY);
+    setUser({
+      id: data.session.user.id,
+      email: data.session.user.email ?? '',
+      isGuest: false,
+    });
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
