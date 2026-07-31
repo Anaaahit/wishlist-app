@@ -43,6 +43,15 @@ export default function LoginScreen() {
     setError(null);
   };
 
+  const errorMessage = (e: unknown): string => {
+    if (e instanceof Error && e.message) return e.message;
+    if (typeof e === 'string' && e) return e;
+    if (e && typeof e === 'object' && 'message' in e && (e as { message?: unknown }).message) {
+      return String((e as { message: unknown }).message);
+    }
+    return 'Something went wrong. Please try again.';
+  };
+
   const handleSubmit = async () => {
     if (submitting) return;
     setError(null);
@@ -65,7 +74,8 @@ export default function LoginScreen() {
         await login(trimmedEmail, password);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong.');
+      console.error('Auth error:', e);
+      setError(errorMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -78,7 +88,8 @@ export default function LoginScreen() {
     try {
       await loginAsGuest();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong.');
+      console.error('Guest login error:', e);
+      setError(errorMessage(e));
     } finally {
       setSubmitting(false);
     }

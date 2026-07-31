@@ -22,7 +22,7 @@ const GUEST_KEY = '@wishlist_guest';
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const friendlyMessage = (msg: string): string => {
-  const m = msg.toLowerCase();
+  const m = (msg || '').toLowerCase();
   if (m.includes('invalid login credentials')) return 'Incorrect email or password.';
   if (m.includes('already registered')) return 'An account with this email already exists. Try logging in.';
   if (m.includes('password should be at least')) return 'Password must be at least 6 characters.';
