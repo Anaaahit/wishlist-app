@@ -1,17 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { SettingsModal } from '@/components/SettingsModal';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const [settingsVisible, setSettingsVisible] = useState(false);
 
   return (
-    <>
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
@@ -43,15 +40,7 @@ export default function TabLayout() {
           title: 'Settings',
           tabBarIcon: ({ color }) => <Ionicons name="settings-outline" size={24} color={color} />,
         }}
-        listeners={{
-          tabPress: (e) => {
-            e.preventDefault();
-            setSettingsVisible(true);
-          },
-        }}
       />
     </Tabs>
-    <SettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
-    </>
   );
 }
