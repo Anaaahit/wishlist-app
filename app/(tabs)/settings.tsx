@@ -15,6 +15,8 @@ import { useWishlist } from '@/context/WishlistContext';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCIES } from '@/types/wishlist';
 import { DeletedWishesModal } from '@/components/DeletedWishesModal';
+import { SharedWishesModal } from '@/components/SharedWishesModal';
+import { isSupabaseConfigured } from '@/services/supabase';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -22,6 +24,7 @@ export default function SettingsScreen() {
   const { deletedItems } = useWishlist();
   const { user, logout } = useAuth();
   const [deletedWishesVisible, setDeletedWishesVisible] = useState(false);
+  const [sharedWishesVisible, setSharedWishesVisible] = useState(false);
 
   const background = useThemeColor({}, 'background');
   const surface = useThemeColor({}, 'surface');
@@ -142,6 +145,30 @@ export default function SettingsScreen() {
         </View>
 
         <View style={[styles.section, { backgroundColor: surface, borderColor: border }]}>
+          <Text style={[styles.sectionTitle, { color: textSecondary }]}>Sharing</Text>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => setSharedWishesVisible(true)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: accent + '15' }]}>
+              <Ionicons name="share-social-outline" size={20} color={accent} />
+            </View>
+            <View style={styles.rowContent}>
+              <Text style={[styles.rowLabel, { color: text }]}>Shared Wishes</Text>
+              <Text style={[styles.rowDetail, { color: textSecondary }]}>
+                {!isSupabaseConfigured
+                  ? 'Not set up yet'
+                  : user && !user.isGuest
+                    ? 'Add wishes from friends and share your own'
+                    : 'Log in to share wishes with others'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.section, { backgroundColor: surface, borderColor: border }]}>
           <Text style={[styles.sectionTitle, { color: textSecondary }]}>Account</Text>
           <View style={styles.row}>
             <View style={[styles.rowIcon, { backgroundColor: accent + '15' }]}>
@@ -170,6 +197,10 @@ export default function SettingsScreen() {
       <DeletedWishesModal
         visible={deletedWishesVisible}
         onClose={() => setDeletedWishesVisible(false)}
+      />
+      <SharedWishesModal
+        visible={sharedWishesVisible}
+        onClose={() => setSharedWishesVisible(false)}
       />
     </View>
   );

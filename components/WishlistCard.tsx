@@ -14,6 +14,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { WishlistItem, PRIORITY_CONFIG } from '@/types/wishlist';
 import { DefaultImage } from '@/components/DefaultImage';
 import { SavingsGoalBar } from '@/components/SavingsGoalBar';
+import { ShareWishSheet } from '@/components/ShareWishSheet';
 
 interface WishlistCardProps {
   item: WishlistItem;
@@ -38,6 +39,7 @@ export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings, 
 
   const [showAddSavings, setShowAddSavings] = useState(false);
   const [addAmount, setAddAmount] = useState('');
+  const [shareVisible, setShareVisible] = useState(false);
 
   const inputNum = parseFloat(addAmount);
   const exceedsPrice = item.price != null && !isNaN(inputNum) && item.savedAmount + inputNum > item.price;
@@ -61,6 +63,7 @@ export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings, 
   };
 
   return (
+    <>
     <TouchableOpacity
       style={[styles.card, { backgroundColor: surface, borderColor: border }]}
       onPress={onPress}
@@ -91,6 +94,9 @@ export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings, 
           <Text style={[styles.title, { color: text }]} numberOfLines={1}>
             {item.title}
           </Text>
+          <TouchableOpacity onPress={() => setShareVisible(true)} hitSlop={8} activeOpacity={0.6}>
+            <Ionicons name="share-social-outline" size={16} color={textSecondary} />
+          </TouchableOpacity>
           <Text style={[styles.priorityDot, { color: priorityConfig.color }]}>
             {priorityConfig.icon}
           </Text>
@@ -168,6 +174,13 @@ export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings, 
 
       <Ionicons name="chevron-forward" size={16} color={textSecondary} style={styles.chevron} />
     </TouchableOpacity>
+
+    <ShareWishSheet
+      visible={shareVisible}
+      wish={item}
+      onClose={() => setShareVisible(false)}
+    />
+    </>
   );
 }
 

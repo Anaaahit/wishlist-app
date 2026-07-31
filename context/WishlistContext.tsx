@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WishlistItem, SortOption } from '@/types/wishlist';
+import { useAuth } from '@/context/AuthContext';
+import { pushWishes, pullWishes, deleteServerWish } from '@/services/supabase';
 
 const STORAGE_KEY = '@wishlist_items';
 
@@ -29,13 +31,47 @@ function generateId(): string {
 }
 
 export function WishlistProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState<SortOption>('date');
 
+  const serverId = user && !user.isGuest ? user.id : null;
+
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
   useEffect(() => {
     loadItems();
   }, []);
+
+  useEffect(() => {
+    if (!serverId) return;
+    let active = true;
+    const sync = async () => {
+      try {
+        const local = itemsRef.current;
+        await pushWishes(serverId, local);
+        const serverItems = await pullWishes(serverId);
+        if (!active) return;
+        const byId = new Map(serverItems.map((item) => [item.id, item]));
+        local.forEach((item) => {
+          if (!byId.has(item.id)) byId.set(item.id, item);
+        });
+        const merged = Array.from(byId.values());
+        setItems(merged);
+        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged)).catch(() => {});
+      } catch (e) {
+        console.error('Wishlist sync failed:', e);
+      }
+    };
+    sync();
+    return () => {
+      active = false;
+    };
+  }, [serverId]);
 
   const normalizeItem = (item: Partial<WishlistItem>): WishlistItem => ({
     id: item.id ?? generateId(),
@@ -77,6 +113,27 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const syncToServer = useCallback(
+    async (newItems: WishlistItem[]) => {
+      if (serverId) {
+        try {
+          await pushWishes(serverId, newItems);
+        } catch (e) {
+          console.error('Failed to push wishlist to server:', e);
+        }
+      }
+    },
+    [serverId]
+  );
+
+  const persist = useCallback(
+    (newItems: WishlistItem[]) => {
+      saveItems(newItems);
+      syncToServer(newItems);
+    },
+    [saveItems, syncToServer]
+  );
+
   const addItem = useCallback(
     (item: Omit<WishlistItem, 'id' | 'createdAt' | 'completed' | 'completedAt' | 'trashed'>) => {
       const newItem: WishlistItem = {
@@ -88,59 +145,62 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         completedAt: null,
         trashed: false,
       };
-      saveItems([newItem, ...items]);
+      persist([newItem, ...itemsRef.current]);
     },
-    [items, saveItems]
+    [persist]
   );
 
   const updateItem = useCallback(
     (id: string, updates: Partial<WishlistItem>) => {
-      saveItems(items.map((item) => (item.id === id ? { ...item, ...updates } : item)));
+      persist(itemsRef.current.map((item) => (item.id === id ? { ...item, ...updates } : item)));
     },
-    [items, saveItems]
+    [persist]
   );
 
   const deleteItem = useCallback(
     (id: string) => {
-      saveItems(items.map((item) => (item.id === id ? { ...item, trashed: true } : item)));
+      persist(itemsRef.current.map((item) => (item.id === id ? { ...item, trashed: true } : item)));
     },
-    [items, saveItems]
+    [persist]
   );
 
   const permanentDeleteItem = useCallback(
     (id: string) => {
-      saveItems(items.filter((item) => item.id !== id));
+      persist(itemsRef.current.filter((item) => item.id !== id));
+      if (serverId) {
+        deleteServerWish(id).catch((e) => console.error('Failed to delete wish on server:', e));
+      }
     },
-    [items, saveItems]
+    [persist, serverId]
   );
 
   const restoreFromTrash = useCallback(
     (id: string) => {
-      saveItems(items.map((item) => (item.id === id ? { ...item, trashed: false } : item)));
+      persist(itemsRef.current.map((item) => (item.id === id ? { ...item, trashed: false } : item)));
     },
-    [items, saveItems]
+    [persist]
   );
 
   const completeItem = useCallback(
     (id: string) => {
-      saveItems(
-        items.map((item) =>
+      persist(
+        itemsRef.current.map((item) =>
           item.id === id ? { ...item, completed: true, completedAt: Date.now() } : item
         )
       );
     },
-    [items, saveItems]
+    [persist]
   );
 
   const restoreItem = useCallback(
     (id: string) => {
-      saveItems(
-        items.map((item) =>
+      persist(
+        itemsRef.current.map((item) =>
           item.id === id ? { ...item, completed: false, completedAt: null } : item
         )
       );
     },
-    [items, saveItems]
+    [persist]
   );
 
   const sortItems = useCallback(

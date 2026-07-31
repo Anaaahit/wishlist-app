@@ -1,14 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Crypto from 'expo-crypto';
-
-interface StoredUser {
-  email: string;
-  passwordHash: string;
-  createdAt: number;
-}
+import { supabase } from '@/services/supabase';
 
 export interface User {
+  id: string | null;
   email: string;
   isGuest: boolean;
 }
@@ -22,54 +17,23 @@ interface AuthContextType {
   logout: () => Promise<void>;
 }
 
-const USERS_KEY = '@wishlist_users';
-const SESSION_KEY = '@wishlist_session';
-const GUEST_EMAIL = 'guest@wishlist.local';
-const SALT = 'wishlistapp';
+const GUEST_KEY = '@wishlist_guest';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const isValidEmail = (email: string): boolean => /^\S+@\S+\.\S+$/.test(email.trim());
-
-const hashPassword = (email: string, password: string): Promise<string> =>
-  Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${SALT}:${email.trim().toLowerCase()}:${password}`);
-
-const loadUsers = async (): Promise<StoredUser[]> => {
-  try {
-    const stored = await AsyncStorage.getItem(USERS_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch (e) {
-    console.error('Failed to load users:', e);
-    return [];
-  }
+const friendlyMessage = (msg: string): string => {
+  const m = msg.toLowerCase();
+  if (m.includes('invalid login credentials')) return 'Incorrect email or password.';
+  if (m.includes('already registered')) return 'An account with this email already exists. Try logging in.';
+  if (m.includes('password should be at least')) return 'Password must be at least 6 characters.';
+  if (m.includes('not confirmed')) return 'Please confirm your email first, then log in.';
+  if (m.includes('valid email')) return 'Please enter a valid email address.';
+  return msg;
 };
 
-const saveUsers = async (users: StoredUser[]) => {
-  try {
-    await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
-  } catch (e) {
-    console.error('Failed to save users:', e);
-  }
-};
-
-const loadSession = async (): Promise<string | null> => {
-  try {
-    return await AsyncStorage.getItem(SESSION_KEY);
-  } catch (e) {
-    console.error('Failed to load session:', e);
-    return null;
-  }
-};
-
-const saveSession = async (email: string | null) => {
-  try {
-    if (email) {
-      await AsyncStorage.setItem(SESSION_KEY, email);
-    } else {
-      await AsyncStorage.removeItem(SESSION_KEY);
-    }
-  } catch (e) {
-    console.error('Failed to save session:', e);
+const requireSupabase = (): void => {
+  if (!supabase) {
+    throw new Error('Set up Supabase first. Add your project URL and anon key in constants/supabase.ts');
   }
 };
 
@@ -77,68 +41,107 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    restoreSession();
+  const checkGuest = useCallback(async (): Promise<boolean> => {
+    const flag = await AsyncStorage.getItem(GUEST_KEY);
+    if (flag === 'true') {
+      setUser({ id: null, email: '', isGuest: true });
+      return true;
+    }
+    return false;
   }, []);
 
-  const restoreSession = async () => {
-    const sessionEmail = await loadSession();
-    if (sessionEmail) {
-      if (sessionEmail === GUEST_EMAIL) {
-        setUser({ email: GUEST_EMAIL, isGuest: true });
-      } else {
-        const users = await loadUsers();
-        if (users.some((u) => u.email === sessionEmail)) {
-          setUser({ email: sessionEmail, isGuest: false });
-        } else {
-          await saveSession(null);
+  useEffect(() => {
+    let mounted = true;
+
+    const boot = async () => {
+      try {
+        if (supabase) {
+          const { data } = await supabase.auth.getSession();
+          if (data.session?.user) {
+            if (mounted) {
+              setUser({
+                id: data.session.user.id,
+                email: data.session.user.email ?? '',
+                isGuest: false,
+              });
+              setIsLoading(false);
+            }
+            return;
+          }
+        }
+        if (mounted) {
+          await checkGuest();
+          setIsLoading(false);
+        }
+      } catch (e) {
+        console.error('Failed to restore session:', e);
+        if (mounted) {
+          await checkGuest();
+          setIsLoading(false);
         }
       }
+    };
+
+    boot();
+
+    let subscription: { unsubscribe: () => void } | null = null;
+    if (supabase) {
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!mounted) return;
+        if (session?.user) {
+          setUser({ id: session.user.id, email: session.user.email ?? '', isGuest: false });
+        } else {
+          checkGuest().then((guest) => {
+            if (!guest && mounted) setUser(null);
+          });
+        }
+      });
+      subscription = data.subscription;
     }
-    setIsLoading(false);
-  };
+
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
+  }, [checkGuest]);
 
   const register = useCallback(async (email: string, password: string) => {
-    const trimmed = email.trim().toLowerCase();
-    if (!isValidEmail(trimmed)) {
-      throw new Error('Please enter a valid email address.');
+    requireSupabase();
+    const { data, error } = await supabase!.auth.signUp({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+    if (error) throw new Error(friendlyMessage(error.message));
+    if (!data.session) {
+      throw new Error('Check your email to confirm your account, then log in.');
     }
-    if (password.length < 6) {
-      throw new Error('Password must be at least 6 characters.');
-    }
-    const users = await loadUsers();
-    if (users.some((u) => u.email === trimmed)) {
-      throw new Error('An account with this email already exists. Try logging in.');
-    }
-    const passwordHash = await hashPassword(trimmed, password);
-    users.push({ email: trimmed, passwordHash, createdAt: Date.now() });
-    await saveUsers(users);
-    await saveSession(trimmed);
-    setUser({ email: trimmed, isGuest: false });
+    await AsyncStorage.removeItem(GUEST_KEY);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const trimmed = email.trim().toLowerCase();
-    if (!isValidEmail(trimmed) || !password) {
-      throw new Error('Please enter your email and password.');
-    }
-    const users = await loadUsers();
-    const found = users.find((u) => u.email === trimmed);
-    const passwordHash = await hashPassword(trimmed, password);
-    if (!found || found.passwordHash !== passwordHash) {
-      throw new Error('Incorrect email or password.');
-    }
-    await saveSession(trimmed);
-    setUser({ email: trimmed, isGuest: false });
+    requireSupabase();
+    const { error } = await supabase!.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+    if (error) throw new Error(friendlyMessage(error.message));
+    await AsyncStorage.removeItem(GUEST_KEY);
   }, []);
 
   const loginAsGuest = useCallback(async () => {
-    await saveSession(GUEST_EMAIL);
-    setUser({ email: GUEST_EMAIL, isGuest: true });
+    if (supabase) {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) await supabase.auth.signOut();
+    }
+    await AsyncStorage.setItem(GUEST_KEY, 'true');
+    setUser({ id: null, email: '', isGuest: true });
   }, []);
 
   const logout = useCallback(async () => {
-    await saveSession(null);
+    await AsyncStorage.removeItem(GUEST_KEY);
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     setUser(null);
   }, []);
 
