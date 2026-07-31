@@ -122,13 +122,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(async (email: string, password: string, pin: string) => {
     requireSupabase();
-    const pinHash = await hashPin(email, pin);
-    const { error } = await supabase!.auth.signUp({
-      email: email.trim().toLowerCase(),
+    const normalized = email.trim().toLowerCase();
+    const pinHash = await hashPin(normalized, pin);
+    const { data, error } = await supabase!.auth.signUp({
+      email: normalized,
       password,
       options: { data: { pinHash } },
     });
     if (error) throw new Error(friendlyMessage(error.message));
+    if (!data.session) {
+      const { error: signInError } = await supabase!.auth.signInWithPassword({
+        email: normalized,
+        password,
+      });
+      if (signInError) throw new Error(friendlyMessage(signInError.message));
+    }
     await AsyncStorage.removeItem(GUEST_KEY);
   }, []);
 
