@@ -19,7 +19,6 @@ interface WishlistContextType {
   activeItems: WishlistItem[];
   completedItems: WishlistItem[];
   deletedItems: WishlistItem[];
-  totalActiveValue: number;
   sortBy: SortOption;
   setSortBy: (sort: SortOption) => void;
 }
@@ -226,7 +225,6 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   const activeItems = sortItems(items.filter((item) => !item.completed && !item.trashed));
   const completedItems = sortItems(items.filter((item) => item.completed && !item.trashed));
   const deletedItems = sortItems(items.filter((item) => item.trashed));
-  const totalActiveValue = activeItems.reduce((sum, item) => sum + (item.price ?? 0), 0);
 
   return (
     <WishlistContext.Provider
@@ -243,7 +241,6 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         activeItems,
         completedItems,
         deletedItems,
-        totalActiveValue,
         sortBy,
         setSortBy,
       }}
