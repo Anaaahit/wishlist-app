@@ -43,6 +43,7 @@ export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings, 
 
   const inputNum = parseFloat(addAmount);
   const exceedsPrice = item.price != null && !isNaN(inputNum) && item.savedAmount + inputNum > item.price;
+  const overSaved = item.price != null && item.savedAmount > item.price;
 
   const priorityConfig = PRIORITY_CONFIG[item.priority];
 
@@ -118,6 +119,14 @@ export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings, 
               targetPrice={item.price}
               currency={item.currency}
             />
+            {overSaved && (
+              <View style={[styles.exceedWarning, { backgroundColor: danger + '15' }]}>
+                <Ionicons name="alert-circle" size={14} color={danger} />
+                <Text style={[styles.exceedWarningText, { color: danger }]}>
+                  Your savings exceed the item price
+                </Text>
+              </View>
+            )}
             <View style={styles.savingsActions}>
               {item.savedAmount < item.price && (
                 showAddSavings ? (
@@ -143,7 +152,7 @@ export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings, 
                       <View style={[styles.exceedWarning, { backgroundColor: danger + '15' }]}>
                         <Ionicons name="alert-circle" size={14} color={danger} />
                         <Text style={[styles.exceedWarningText, { color: danger }]}>
-                          Total saved exceeds item price
+                          Your savings exceed the item price
                         </Text>
                       </View>
                     )}

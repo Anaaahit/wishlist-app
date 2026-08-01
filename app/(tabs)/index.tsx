@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { FAB } from '@/components/FAB';
 import { SortSelector } from '@/components/SortSelector';
 import { Confetti } from '@/components/Confetti';
 import { useSettings } from '@/context/SettingsContext';
+import { fetchRates, convertAmount } from '@/services/currencyRates';
 import { WishlistItem } from '@/types/wishlist';
 
 export default function WishlistScreen() {
@@ -24,7 +25,6 @@ export default function WishlistScreen() {
   const {
     activeItems,
     items,
-    totalActiveValue,
     sortBy,
     setSortBy,
     addItem,
@@ -37,6 +37,20 @@ export default function WishlistScreen() {
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const { settings } = useSettings();
+  const [rates, setRates] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    fetchRates().then(setRates);
+  }, []);
+
+  const convert = useCallback(
+    (amount: number, fromCurrency: string) => {
+      return convertAmount(amount, fromCurrency, settings.defaultCurrency, rates);
+    },
+    [settings.defaultCurrency, rates]
+  );
+
+  const totalActiveValue = activeItems.reduce((sum, item) => sum + convert(item.price ?? 0, item.currency), 0);
 
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
@@ -77,6 +91,8 @@ export default function WishlistScreen() {
       onToggleComplete={() => handleToggleComplete(item)}
       onPress={() => handleCardPress(item)}
       onAddToSavings={(amount) => updateItem(item.id, { savedAmount: item.savedAmount + amount })}
+      displayPrice={item.price != null ? convert(item.price, item.currency) : null}
+      displayCurrency={settings.defaultCurrency}
     />
   );
 
