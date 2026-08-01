@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator } from 'react-native';
 import { WishlistProvider } from '@/context/WishlistContext';
+import { TodoProvider } from '@/context/TodoContext';
 import { SettingsProvider } from '@/context/SettingsContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -35,10 +36,12 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <WishlistProvider>
-        <SettingsProvider>
-          <StatusBar style="auto" />
-          <RootNavigator />
-        </SettingsProvider>
+        <TodoProvider>
+          <SettingsProvider>
+            <StatusBar style="auto" />
+            <RootNavigator />
+          </SettingsProvider>
+        </TodoProvider>
       </WishlistProvider>
     </AuthProvider>
   );

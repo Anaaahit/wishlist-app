@@ -28,6 +28,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="todos"
+        options={{
+          title: 'To-do List',
+          tabBarIcon: ({ color }) => <Ionicons name="checkbox-outline" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="completed"
         options={{
           title: 'Completed',
