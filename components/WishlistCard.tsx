@@ -55,11 +55,11 @@ export function WishlistCard({ item, onToggleComplete, onPress, onAddToSavings, 
 
   const handleAddSavings = () => {
     const amount = parseFloat(addAmount);
-    if (!isNaN(amount) && amount > 0 && onAddToSavings) {
+    if (!isNaN(amount) && amount > 0 && onAddToSavings && !exceedsPrice) {
       onAddToSavings(amount);
+      setShowAddSavings(false);
+      setAddAmount('');
     }
-    setShowAddSavings(false);
-    setAddAmount('');
   };
 
   return (
