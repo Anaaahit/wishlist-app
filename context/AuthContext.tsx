@@ -150,9 +150,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password,
       });
       if (error) throw new Error(friendlyMessage(error.message));
+      const uid = data.user?.id;
+      if (!uid) throw new Error('Login succeeded, but no user data was returned.');
       const pinHash = data.user?.user_metadata?.pinHash as string | undefined;
       if (!pinHash) {
         await AsyncStorage.removeItem(GUEST_KEY);
+        setUser({ id: uid, email: data.user?.email ?? '', isGuest: false });
         return false;
       }
       await supabase!.auth.signOut();
